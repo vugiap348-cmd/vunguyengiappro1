@@ -145,6 +145,20 @@
             const [showPwField,    setShowPwField]    = useState(false);
             const [isSyncing,      setIsSyncing]      = useState(false);
             const [cloudStatus,    setCloudStatus]    = useState('idle');
+            // ✅ Safety: auto-reset cloudStatus nếu bị kẹt 'syncing' quá 12 giây
+            const cloudStatusRef   = useRef('idle');
+            const setCloudStatusSafe = (status) => {
+                cloudStatusRef.current = status;
+                setCloudStatus(status);
+                if (status === 'syncing') {
+                    setTimeout(() => {
+                        if (cloudStatusRef.current === 'syncing') {
+                            cloudStatusRef.current = 'error';
+                            setCloudStatusSafe('error');
+                        }
+                    }, 12000);
+                }
+            };
 
             // Profile modal
             const [showProfile,    setShowProfile]    = useState(false);
@@ -200,7 +214,7 @@
                 if (foundUser.examHistory) setExamHistory(foundUser.examHistory);
                 setIsUnlocked(true);
                 if (mode === 'manual') playSound();
-                setCloudStatus('synced');
+                setCloudStatusSafe('synced');
                 showToast(`✅ Chào ${foundUser.displayName}`, 'success');
             }, [showToast]);
 
@@ -219,7 +233,7 @@
                 if (window.emailjs) window.emailjs.init(EMAILJS_PUBLIC_KEY);
 
                 const init = async () => {
-                    setCloudStatus('syncing');
+                    setCloudStatusSafe('syncing');
 
                     // 1. Tải tất cả users từ cloud
                     let latestUsers = null;
@@ -230,7 +244,7 @@
                             setUsers(cloudUsers);
                             usersRef.current = cloudUsers;
                             localStorage.setItem(STORAGE.USERS, JSON.stringify(cloudUsers));
-                            setCloudStatus('synced');
+                            setCloudStatusSafe('synced');
                         }
                     } catch(e) {}
 
@@ -242,12 +256,12 @@
                             setUsers(latestUsers);
                             usersRef.current = latestUsers;
                             for (const u of latestUsers) await cloudSave(u);
-                            setCloudStatus('synced');
+                            setCloudStatusSafe('synced');
                         } catch(e) {
                             latestUsers = DEFAULT_USERS;
                             setUsers(DEFAULT_USERS);
                             usersRef.current = DEFAULT_USERS;
-                            setCloudStatus('error');
+                            setCloudStatusSafe('error');
                         }
                     }
 
@@ -303,7 +317,7 @@
             // ── LOGIN (manual) ───────────────────────────────────────────────
             const handleLogin = async (e) => {
                 e.preventDefault();
-                setCloudStatus('syncing');
+                setCloudStatusSafe('syncing');
                 showToast('🔄 Đang xác thực...', 'info');
 
                 try {
@@ -339,13 +353,13 @@
                             showToast(`✅ Đăng nhập offline (${local.displayName})`, 'info');
                         } else {
                             showToast("❌ Sai tài khoản hoặc mật khẩu", 'error');
-                            setCloudStatus('error');
+                            setCloudStatusSafe('error');
                         }
                     }
                 } catch(err) {
                     console.error(err);
                     showToast("❌ Có lỗi xảy ra", 'error');
-                    setCloudStatus('error');
+                    setCloudStatusSafe('error');
                 }
             };
 
@@ -368,7 +382,7 @@
 
             // ── UPDATE USER (lưu + sync cloud) ──────────────────────────────
             const updateUser = async (updated, silent=false) => {
-                setCloudStatus('syncing');
+                setCloudStatusSafe('syncing');
                 const merged = usersRef.current.map(u => u.user === updated.user ? updated : u);
                 setUsers(merged);
                 usersRef.current = merged;
@@ -381,7 +395,7 @@
                 if (rememberMeRef.current) saveRemember(updated.user, updated.pass);
 
                 const ok = await cloudSave(updated);
-                setCloudStatus(ok ? 'synced' : 'error');
+                setCloudStatusSafe(ok ? 'synced' : 'error');
                 if (!silent) showToast(ok ? '☁️ Đã lưu & đồng bộ cloud' : '⚠️ Lưu local OK, cloud lỗi', ok ? 'success' : 'error');
                 return merged;
             };
@@ -389,7 +403,7 @@
             // ── MANUAL SYNC ──────────────────────────────────────────────────
             const handleManualSync = async () => {
                 setIsSyncing(true);
-                setCloudStatus('syncing');
+                setCloudStatusSafe('syncing');
                 showToast('🔄 Đang tải dữ liệu mới nhất...', 'info');
                 try {
                     const cu = currentUserRef.current;
@@ -407,14 +421,14 @@
                         localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
                         if (rememberMeRef.current) saveRemember(fresh.user, fresh.pass);
                         showToast('✅ Đã cập nhật dữ liệu mới nhất!', 'success');
-                        setCloudStatus('synced');
+                        setCloudStatusSafe('synced');
                     } else {
                         showToast('⚠️ Không tìm thấy dữ liệu trên cloud', 'error');
-                        setCloudStatus('error');
+                        setCloudStatusSafe('error');
                     }
                 } catch(e) {
                     showToast('⚠️ Lỗi kết nối', 'error');
-                    setCloudStatus('error');
+                    setCloudStatusSafe('error');
                 } finally {
                     setIsSyncing(false);
                 }
@@ -458,7 +472,8 @@
                     displayName: newDisplayName || cu.displayName,
                     avatar: avatarLink || selAvatar || cu.avatar
                 };
-                await updateUser(updated);
+                // silent=true vì updateUser đã tự show toast
+                await updateUser(updated, true);
                 showToast("✅ Đã lưu và đồng bộ lên cloud", 'success');
                 setShowProfile(false);
             };
