@@ -34,6 +34,8 @@
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
         .loading-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
         @keyframes dots { 0%,20%{content:'';} 40%{content:'.';} 60%{content:'..';} 80%,100%{content:'...';} }
+        /* FIX: Avatar image link preview */
+        .avatar-preview-img { width: 100%; height: 100%; object-fit: cover; border-radius: 9999px; display: block; }
     </style>
 </head>
 <body class="animated-bg">
@@ -74,7 +76,6 @@
         // ── Firebase helpers ─────────────────────────────────────────────────
         const cloudSave = async (u) => {
             try {
-                // Strip bất kỳ field undefined/lastUpdated cũ trước khi lưu
                 const { lastUpdated, ...cleanUser } = u;
                 await db.collection('users').doc(cleanUser.user.toLowerCase()).set({
                     user: cleanUser.user,
@@ -86,29 +87,69 @@
                     examHistory: cleanUser.examHistory || [],
                     lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                return true;
-            } catch(e){ console.error('cloudSave',e); return false; }
+                return { ok: true };
+            } catch(e){
+                console.error('cloudSave error:', e);
+                return { ok: false, msg: e.code || e.message || String(e) };
+            }
         };
 
         const cloudLoad = async (username) => {
             try {
                 const doc = await db.collection('users').doc(username.toLowerCase()).get();
-                if (!doc.exists) return null;
+                if (!doc.exists) return { ok: true, data: null };
                 const { lastUpdated, ...data } = doc.data();
-                return data;
-            } catch(e){ console.error('cloudLoad',e); return null; }
+                return { ok: true, data };
+            } catch(e){
+                console.error('cloudLoad error:', e);
+                return { ok: false, msg: e.code || e.message || String(e), data: null };
+            }
         };
 
         const cloudLoadAll = async () => {
             try {
                 const snap = await db.collection('users').get();
-                return snap.docs.map(d => { const { lastUpdated, ...data } = d.data(); return data; });
-            } catch(e){ console.error('cloudLoadAll',e); return []; }
+                const users = snap.docs.map(d => { const { lastUpdated, ...data } = d.data(); return data; });
+                return { ok: true, data: users };
+            } catch(e){
+                console.error('cloudLoadAll error:', e);
+                return { ok: false, msg: e.code || e.message || String(e), data: [] };
+            }
         };
 
         // ── Helpers ──────────────────────────────────────────────────────────
-        const getAvatarStyle = (av) => av?.startsWith('http') ? { backgroundImage:`url(${av})`, backgroundSize:'cover', backgroundPosition:'center' } : {};
-        const getAvatarClass  = (av) => (!av || av.startsWith('http')) ? 'bg-cyan-500' : av;
+        // FIX: Dùng <img> tag thay vì backgroundImage để tránh lỗi hiển thị ảnh
+        const isImageUrl = (av) => av && av.startsWith('http');
+        const getAvatarClass = (av) => (!av || isImageUrl(av)) ? 'bg-gray-800' : av;
+
+        // ── AvatarDisplay component – FIX màn hình đen khi dùng link ảnh ──
+        const AvatarDisplay = ({ avatar, size = 'md', className = '' }) => {
+            const [imgError, setImgError] = useState(false);
+            const sizeMap = { sm: 'w-7 h-7', md: 'w-10 h-10', lg: 'w-12 h-12' };
+            const iconSizeMap = { sm: 'w-4 h-4', md: 'w-5 h-5', lg: 'w-6 h-6' };
+            const sizeClass = sizeMap[size] || sizeMap.md;
+            const iconSize = iconSizeMap[size] || iconSizeMap.md;
+
+            if (isImageUrl(avatar) && !imgError) {
+                return (
+                    <div className={`${sizeClass} rounded-full overflow-hidden flex-shrink-0 ${className}`}>
+                        <img
+                            src={avatar}
+                            alt="avatar"
+                            className="w-full h-full object-cover"
+                            onError={() => setImgError(true)}
+                        />
+                    </div>
+                );
+            }
+            // Fallback: màu hoặc icon mặc định
+            const bgColor = (!avatar || isImageUrl(avatar)) ? 'bg-cyan-500' : avatar;
+            return (
+                <div className={`${sizeClass} rounded-full ${bgColor} flex items-center justify-center flex-shrink-0 ${className}`}>
+                    <i data-lucide="user" className={`text-white ${iconSize}`}></i>
+                </div>
+            );
+        };
 
         const extractYoutubeId = (url) => {
             if (!url) return null;
@@ -130,7 +171,7 @@
         const App = () => {
             const [users,          setUsers]          = useState([]);
             const [isUnlocked,     setIsUnlocked]     = useState(false);
-            const [isAutoLogging,  setIsAutoLogging]  = useState(false); // màn loading auto-login
+            const [isAutoLogging,  setIsAutoLogging]  = useState(false);
             const [username,       setUsername]       = useState("");
             const [password,       setPassword]       = useState("");
             const [rememberMe,     setRememberMe]     = useState(false);
@@ -145,8 +186,10 @@
             const [showPwField,    setShowPwField]    = useState(false);
             const [isSyncing,      setIsSyncing]      = useState(false);
             const [cloudStatus,    setCloudStatus]    = useState('idle');
-            // ✅ Safety: auto-reset cloudStatus nếu bị kẹt 'syncing' quá 12 giây
-            const cloudStatusRef   = useRef('idle');
+            // ✅ FIX CHÍNH: khai báo cloudErrorMsg state (nguyên nhân màn hình đen)
+            const [cloudErrorMsg,  setCloudErrorMsg]  = useState('');
+
+            const cloudStatusRef = useRef('idle');
             const setCloudStatusSafe = (status) => {
                 cloudStatusRef.current = status;
                 setCloudStatus(status);
@@ -154,7 +197,7 @@
                     setTimeout(() => {
                         if (cloudStatusRef.current === 'syncing') {
                             cloudStatusRef.current = 'error';
-                            setCloudStatusSafe('error');
+                            setCloudStatus('error');
                         }
                     }, 12000);
                 }
@@ -166,6 +209,7 @@
             const [newDisplayName, setNewDisplayName] = useState("");
             const [selAvatar,      setSelAvatar]      = useState("");
             const [avatarLink,     setAvatarLink]     = useState("");
+            const [avatarLinkValid, setAvatarLinkValid] = useState(true); // FIX: kiểm tra link ảnh hợp lệ
             const [otpStep,        setOtpStep]        = useState(1);
             const [otpInput,       setOtpInput]       = useState("");
             const [newPw,          setNewPw]          = useState("");
@@ -173,9 +217,8 @@
             const [newExamTitle,   setNewExamTitle]   = useState("");
             const [newExamUrl,     setNewExamUrl]     = useState("");
 
-            // ✅ FIX OTP: useRef để giữ OTP thực tế — không bị stale closure
-            const otpSentRef     = useRef("");
-            const forgotOtpRef   = useRef("");
+            const otpSentRef   = useRef("");
+            const forgotOtpRef = useRef("");
 
             // Forgot modal
             const [showForgot,  setShowForgot]  = useState(false);
@@ -191,7 +234,6 @@
             const [newMaxScore,  setNewMaxScore]  = useState("");
             const [showAddScore, setShowAddScore] = useState(false);
 
-            // ✅ FIX STALE STATE trong async: luôn dùng ref cho users/currentUser/rememberMe
             const usersRef       = useRef([]);
             const currentUserRef = useRef(null);
             const rememberMeRef  = useRef(false);
@@ -208,7 +250,6 @@
                 setTimeout(() => setToast(null), 3100);
             }, []);
 
-            // Đăng nhập 1 user (dùng chung cho manual + auto)
             const doLogin = useCallback((foundUser, mode='manual') => {
                 setCurrentUser(foundUser);
                 if (foundUser.examHistory) setExamHistory(foundUser.examHistory);
@@ -218,7 +259,6 @@
                 showToast(`✅ Chào ${foundUser.displayName}`, 'success');
             }, [showToast]);
 
-            // ── REMEMBER ME: lưu / xoá ──────────────────────────────────────
             const saveRemember = (u, p) =>
                 localStorage.setItem(STORAGE.REMEMBER, JSON.stringify({ user:u, pass:p }));
             const clearRemember = () =>
@@ -235,72 +275,60 @@
                 const init = async () => {
                     setCloudStatusSafe('syncing');
 
-                    // 1. Tải tất cả users từ cloud
                     let latestUsers = null;
-                    try {
-                        const cloudUsers = await cloudLoadAll();
-                        if (cloudUsers?.length > 0) {
-                            latestUsers = cloudUsers;
-                            setUsers(cloudUsers);
-                            usersRef.current = cloudUsers;
-                            localStorage.setItem(STORAGE.USERS, JSON.stringify(cloudUsers));
-                            setCloudStatusSafe('synced');
-                        }
-                    } catch(e) {}
+                    const allRes = await cloudLoadAll();
+                    if (allRes.ok && allRes.data.length > 0) {
+                        latestUsers = allRes.data;
+                        setUsers(latestUsers);
+                        usersRef.current = latestUsers;
+                        localStorage.setItem(STORAGE.USERS, JSON.stringify(latestUsers));
+                        setCloudStatusSafe('synced');
+                        setCloudErrorMsg(''); // ✅ Giờ đã có state, không crash
+                    } else if (!allRes.ok) {
+                        setCloudErrorMsg(allRes.msg || 'Unknown error'); // ✅ Giờ đã có state
+                    }
 
-                    // 2. Fallback: local storage
                     if (!latestUsers) {
-                        try {
-                            const raw = localStorage.getItem(STORAGE.USERS);
-                            latestUsers = raw ? JSON.parse(raw) : DEFAULT_USERS;
-                            setUsers(latestUsers);
-                            usersRef.current = latestUsers;
+                        const raw = localStorage.getItem(STORAGE.USERS);
+                        latestUsers = raw ? JSON.parse(raw) : DEFAULT_USERS;
+                        setUsers(latestUsers);
+                        usersRef.current = latestUsers;
+                        if (!allRes.ok) {
+                            setCloudStatusSafe('error');
+                        } else {
                             for (const u of latestUsers) await cloudSave(u);
                             setCloudStatusSafe('synced');
-                        } catch(e) {
-                            latestUsers = DEFAULT_USERS;
-                            setUsers(DEFAULT_USERS);
-                            usersRef.current = DEFAULT_USERS;
-                            setCloudStatusSafe('error');
                         }
                     }
 
-                    // 3. ✅ AUTO-LOGIN: đọc remember, luôn re-fetch từ cloud để lấy dữ liệu mới nhất
                     const rem = getRemember();
                     if (rem?.user && rem?.pass) {
                         setUsername(rem.user);
                         setPassword(rem.pass);
                         setRememberMe(true);
+                        rememberMeRef.current = true;
                         setIsAutoLogging(true);
 
                         try {
-                            // Ưu tiên cloud để lấy dữ liệu mới nhất
-                            let found = await cloudLoad(rem.user);
-                            if (!found) {
-                                // Fallback local nếu offline
-                                found = latestUsers.find(u => u.user.toLowerCase() === rem.user.toLowerCase());
-                            }
+                            const loadRes = await cloudLoad(rem.user);
+                            let found = (loadRes.ok && loadRes.data) ? loadRes.data
+                                : latestUsers.find(u => u.user.toLowerCase() === rem.user.toLowerCase());
 
                             if (found && found.pass === rem.pass) {
-                                // Cập nhật local với dữ liệu mới nhất từ cloud
                                 const merged = latestUsers.map(u =>
                                     u.user.toLowerCase() === found.user.toLowerCase() ? found : u
                                 );
                                 setUsers(merged);
                                 usersRef.current = merged;
                                 localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
-
                                 doLogin(found, 'auto');
                             } else {
-                                // Mật khẩu đã thay đổi từ thiết bị khác → xoá remember
                                 clearRemember();
-                                setUsername("");
-                                setPassword("");
-                                setRememberMe(false);
+                                setUsername(""); setPassword(""); setRememberMe(false);
+                                rememberMeRef.current = false;
                                 showToast("⚠️ Phiên đăng nhập hết hạn, vui lòng đăng nhập lại", 'error');
                             }
                         } catch(e) {
-                            // Nếu lỗi network, thử local
                             const found = latestUsers.find(u => u.user.toLowerCase() === rem.user.toLowerCase() && u.pass === rem.pass);
                             if (found) doLogin(found, 'auto');
                         } finally {
@@ -314,35 +342,27 @@
 
             useEffect(() => { lucide.createIcons(); });
 
-            // ── LOGIN (manual) ───────────────────────────────────────────────
+            // ── LOGIN ────────────────────────────────────────────────────────
             const handleLogin = async (e) => {
                 e.preventDefault();
                 setCloudStatusSafe('syncing');
                 showToast('🔄 Đang xác thực...', 'info');
 
                 try {
-                    // Luôn load từ cloud để có dữ liệu mới nhất
-                    let found = await cloudLoad(username);
+                    const res = await cloudLoad(username);
+                    let found = (res.ok && res.data) ? res.data : null;
 
                     if (found && found.pass === password) {
-                        // Cập nhật local
                         const merged = usersRef.current.map(u =>
                             u.user.toLowerCase() === found.user.toLowerCase() ? found : u
                         );
                         setUsers(merged);
                         usersRef.current = merged;
                         localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
-
-                        // ✅ Lưu / xoá remember dùng rememberMeRef (giá trị thực tại thời điểm này)
-                        if (rememberMeRef.current) {
-                            saveRemember(found.user, found.pass);
-                        } else {
-                            clearRemember();
-                        }
-
+                        if (rememberMeRef.current) saveRemember(found.user, found.pass);
+                        else clearRemember();
                         doLogin(found, 'manual');
                     } else {
-                        // Fallback offline
                         const local = usersRef.current.find(u =>
                             u.user.toLowerCase() === username.toLowerCase() && u.pass === password
                         );
@@ -367,7 +387,6 @@
             const handleLogout = () => {
                 setIsUnlocked(false);
                 playSound("https://www.soundjay.com/mechanical/sounds/iron-gate-close-1.mp3");
-                // ✅ Dùng rememberMeRef để đọc giá trị thực tại thời điểm logout
                 if (!rememberMeRef.current) clearRemember();
                 setTimeout(() => {
                     setCurrentUser(null);
@@ -380,7 +399,7 @@
                 showToast("Đã đăng xuất", 'info');
             };
 
-            // ── UPDATE USER (lưu + sync cloud) ──────────────────────────────
+            // ── UPDATE USER ──────────────────────────────────────────────────
             const updateUser = async (updated, silent=false) => {
                 setCloudStatusSafe('syncing');
                 const merged = usersRef.current.map(u => u.user === updated.user ? updated : u);
@@ -390,10 +409,7 @@
                 currentUserRef.current = updated;
                 if (updated.examHistory) setExamHistory(updated.examHistory);
                 localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
-
-                // ✅ Dùng rememberMeRef tránh stale closure
                 if (rememberMeRef.current) saveRemember(updated.user, updated.pass);
-
                 const ok = await cloudSave(updated);
                 setCloudStatusSafe(ok ? 'synced' : 'error');
                 if (!silent) showToast(ok ? '☁️ Đã lưu & đồng bộ cloud' : '⚠️ Lưu local OK, cloud lỗi', ok ? 'success' : 'error');
@@ -408,10 +424,9 @@
                 try {
                     const cu = currentUserRef.current;
                     if (!cu) return;
-
-                    const fresh = await cloudLoad(cu.user);
+                    const res = await cloudLoad(cu.user);
+                    const fresh = (res.ok && res.data) ? res.data : null;
                     if (fresh) {
-                        // ✅ Dùng usersRef.current và rememberMeRef.current — tránh stale state
                         const merged = usersRef.current.map(u => u.user === fresh.user ? fresh : u);
                         setUsers(merged);
                         usersRef.current = merged;
@@ -456,7 +471,8 @@
                 if (!cu) return;
                 setNewDisplayName(cu.displayName);
                 setSelAvatar(cu.avatar);
-                setAvatarLink("");
+                setAvatarLink(isImageUrl(cu.avatar) ? cu.avatar : ""); // FIX: pre-fill link nếu đang dùng ảnh link
+                setAvatarLinkValid(true);
                 setProfileTab('info');
                 setOtpStep(1); setOtpInput(""); setNewPw("");
                 setNewExamTitle(""); setNewExamUrl("");
@@ -464,29 +480,43 @@
                 setShowProfile(true);
             };
 
+            // FIX: Xử lý nhập link ảnh – validate & preview
+            const handleAvatarLinkChange = (val) => {
+                setAvatarLink(val);
+                if (!val) {
+                    setAvatarLinkValid(true);
+                    return;
+                }
+                // Kiểm tra link hợp lệ (bắt đầu bằng http)
+                setAvatarLinkValid(val.startsWith('http'));
+            };
+
             // ── UPDATE PROFILE ───────────────────────────────────────────────
             const handleUpdateProfile = async () => {
                 const cu = currentUserRef.current;
+                let finalAvatar = cu.avatar;
+                if (avatarLink && avatarLink.startsWith('http')) {
+                    finalAvatar = avatarLink;
+                } else if (!avatarLink && selAvatar) {
+                    finalAvatar = selAvatar;
+                }
                 const updated = {
                     ...cu,
                     displayName: newDisplayName || cu.displayName,
-                    avatar: avatarLink || selAvatar || cu.avatar
+                    avatar: finalAvatar
                 };
-                // silent=true vì updateUser đã tự show toast
                 await updateUser(updated, true);
                 showToast("✅ Đã lưu và đồng bộ lên cloud", 'success');
                 setShowProfile(false);
             };
 
-            // ── OTP ĐỔI MẬT KHẨU (trong profile) ───────────────────────────
+            // ── OTP ĐỔI MẬT KHẨU ────────────────────────────────────────────
             const sendOtpForPassword = async () => {
                 const cu = currentUserRef.current;
                 if (!cu) return;
                 setIsLoading(true);
                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
-                // ✅ Lưu vào ref — không bị stale closure khi dùng trong verifyOtp
                 otpSentRef.current = otp;
-                console.log("OTP generated:", otp); // debug
                 try {
                     await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
                         otp_code: otp, to_email: cu.email, user_name: cu.displayName
@@ -494,15 +524,12 @@
                     setOtpStep(2);
                     showToast("✅ Mã OTP đã gửi đến email", 'success');
                 } catch(e) {
-                    showToast("❌ Gửi email thất bại: " + e.text, 'error');
+                    showToast("❌ Gửi email thất bại: " + (e.text || e.message), 'error');
                 } finally { setIsLoading(false); }
             };
 
             const verifyOtpAndChangePassword = async () => {
-                // ✅ So sánh với ref, không phải state
-                if (otpInput.trim() !== otpSentRef.current) {
-                    return showToast("❌ Mã OTP không đúng", 'error');
-                }
+                if (otpInput.trim() !== otpSentRef.current) return showToast("❌ Mã OTP không đúng", 'error');
                 if (newPw.length < 6) return showToast("Mật khẩu tối thiểu 6 ký tự", 'error');
                 const updated = { ...currentUserRef.current, pass: newPw };
                 await updateUser(updated);
@@ -513,14 +540,11 @@
             // ── FORGOT PASSWORD ──────────────────────────────────────────────
             const sendForgotOtp = async () => {
                 const target = forgotUser || currentUserRef.current?.user;
-                // ✅ Dùng usersRef thay vì users
                 const userFound = usersRef.current.find(u => u.user.toLowerCase() === target?.toLowerCase());
                 if (!userFound) return showToast("❌ Tài khoản không tồn tại", 'error');
                 setIsLoading(true);
                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
-                // ✅ Lưu vào ref
                 forgotOtpRef.current = otp;
-                console.log("Forgot OTP generated:", otp); // debug
                 try {
                     await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
                         otp_code: otp, to_email: userFound.email, user_name: userFound.displayName
@@ -533,7 +557,6 @@
             };
 
             const verifyForgotOtp = () => {
-                // ✅ So sánh với ref
                 if (inputOtp.trim() === forgotOtpRef.current) setForgotStep(3);
                 else showToast("❌ Mã OTP không đúng", 'error');
             };
@@ -541,7 +564,6 @@
             const updateForgotPassword = async () => {
                 if (forgotNewPw.length < 6) return showToast("Mật khẩu tối thiểu 6 ký tự", 'error');
                 const target = forgotUser || currentUserRef.current?.user;
-                // ✅ Dùng usersRef
                 const idx = usersRef.current.findIndex(u => u.user.toLowerCase() === target?.toLowerCase());
                 if (idx !== -1) {
                     const updated = { ...usersRef.current[idx], pass: forgotNewPw };
@@ -550,7 +572,6 @@
                     usersRef.current = merged;
                     localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
                     await cloudSave(updated);
-                    // ✅ Dùng rememberMeRef
                     if (rememberMeRef.current && currentUserRef.current?.user === updated.user) {
                         saveRemember(updated.user, updated.pass);
                     }
@@ -598,6 +619,10 @@
                 const id = extractYoutubeId(e.target.value);
                 if (id) setVideoId(id);
             };
+
+            // ── Preview avatar đang chọn (trong modal) ───────────────────────
+            const previewAvatar = avatarLink && avatarLink.startsWith('http') ? avatarLink
+                : (selAvatar || currentUser?.avatar || 'bg-cyan-500');
 
             // ════════════════════════════════════════════════════════════════
             //  RENDER
@@ -647,14 +672,9 @@
                                             <i data-lucide={showPwField?"eye-off":"eye"} className="w-5 h-5"></i>
                                         </button>
                                     </div>
-
-                                    {/* ✅ REMEMBER ME — UI rõ ràng */}
                                     <div className="flex items-center justify-between text-xs">
                                         <label className="flex items-center gap-3 cursor-pointer select-none">
-                                            <div
-                                                onClick={()=>setRememberMe(v=>!v)}
-                                                className={`w-11 h-6 rounded-full transition-all duration-300 relative ${rememberMe ? 'bg-cyan-500' : 'bg-white/10 border border-white/20'}`}
-                                            >
+                                            <div onClick={()=>setRememberMe(v=>!v)} className={`w-11 h-6 rounded-full transition-all duration-300 relative ${rememberMe ? 'bg-cyan-500' : 'bg-white/10 border border-white/20'}`}>
                                                 <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300 ${rememberMe ? 'left-5' : 'left-0.5'}`}></div>
                                             </div>
                                             <span className={rememberMe ? 'text-cyan-400 font-bold' : 'text-gray-400'}>
@@ -663,14 +683,12 @@
                                         </label>
                                         <button type="button" onClick={()=>{setShowForgot(true); setForgotStep(1); setForgotUser(""); setInputOtp(""); setForgotNewPw(""); forgotOtpRef.current="";}} className="text-cyan-400 hover:underline">Quên mật khẩu?</button>
                                     </div>
-
                                     {rememberMe && (
                                         <div className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/30 rounded-xl px-4 py-2">
                                             <i data-lucide="info" className="w-4 h-4 text-cyan-400 flex-shrink-0"></i>
                                             <p className="text-[10px] text-cyan-300">Lần sau mở app sẽ tự đăng nhập và tải dữ liệu mới nhất từ cloud</p>
                                         </div>
                                     )}
-
                                     <button className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-black rounded-2xl shadow-[0_0_25px_rgba(6,182,212,0.6)] active:scale-95 transition-all uppercase tracking-widest">
                                         Đăng nhập
                                     </button>
@@ -687,9 +705,8 @@
                             {/* SIDEBAR */}
                             <aside className={`fixed lg:static top-0 left-0 z-50 h-full w-[300px] bg-[#0a0a0a]/90 backdrop-blur-xl border-r border-white/5 transition-transform duration-300 flex flex-col ${isSidebarOpen?'translate-x-0':'-translate-x-full lg:translate-x-0'}`}>
                                 <div className="p-6 border-b border-white/10 flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-xl ${getAvatarClass(currentUser.avatar)} flex items-center justify-center shadow-lg avatar-image`} style={getAvatarStyle(currentUser.avatar)}>
-                                        {!currentUser.avatar?.startsWith('http') && <i data-lucide="user" className="text-white w-6 h-6"></i>}
-                                    </div>
+                                    {/* FIX: dùng AvatarDisplay component */}
+                                    <AvatarDisplay avatar={currentUser.avatar} size="lg" className="rounded-xl shadow-lg" />
                                     <div>
                                         <h2 className="text-lg font-black italic text-cyan-400 flex items-center gap-2">VNG PRO <i data-lucide="cloud" className="w-3 h-3 text-cyan-500/50"></i></h2>
                                         <div className="mt-1 px-2 py-0.5 bg-cyan-500/20 rounded-full text-[9px] font-bold text-cyan-300 uppercase">{currentUser.displayName}</div>
@@ -747,10 +764,9 @@
                                         <button onClick={()=>setShowMusicBox(!showMusicBox)} className={`flex items-center gap-2 px-5 py-1.5 rounded-full text-[10px] font-black transition ${showMusicBox?'bg-gradient-to-r from-red-600 to-red-500 text-white':'bg-white/5 text-gray-400'}`}>
                                             <i data-lucide="music" className="w-3.5 h-3.5" />{showMusicBox?'ĐÓNG NHẠC':'MỞ NHẠC'}
                                         </button>
+                                        {/* FIX: dùng AvatarDisplay trong header */}
                                         <button onClick={openProfile} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-full transition">
-                                            <div className={`w-7 h-7 rounded-full ${getAvatarClass(currentUser.avatar)} flex items-center justify-center avatar-image`} style={getAvatarStyle(currentUser.avatar)}>
-                                                {!currentUser.avatar?.startsWith('http') && <i data-lucide="user" className="text-white w-4 h-4"></i>}
-                                            </div>
+                                            <AvatarDisplay avatar={currentUser.avatar} size="sm" />
                                             <span className="text-xs font-bold hidden sm:inline">{currentUser.displayName}</span>
                                         </button>
                                     </div>
@@ -810,12 +826,44 @@
                                             </div>
                                             <div>
                                                 <label className="text-xs text-gray-400 uppercase">Ảnh đại diện</label>
+                                                {/* FIX: Preview avatar hiện tại */}
+                                                <div className="flex items-center gap-4 mt-3 mb-3">
+                                                    <div className="relative">
+                                                        <AvatarDisplay avatar={previewAvatar} size="lg" className="w-16 h-16 rounded-2xl border-2 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.3)]" />
+                                                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center">
+                                                            <i data-lucide="check" className="w-3 h-3 text-black"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-400">Xem trước ảnh đại diện</p>
+                                                        <p className="text-[10px] text-gray-600 mt-1">Chọn màu hoặc dán link ảnh</p>
+                                                    </div>
+                                                </div>
                                                 <div className="flex flex-wrap gap-3 mt-2">
                                                     {AVATAR_COLLECTION.map((color,idx)=>(
                                                         <div key={idx} onClick={()=>{setSelAvatar(color);setAvatarLink("");}} className={`avatar-item w-10 h-10 ${color} ${selAvatar===color&&!avatarLink?'selected':''}`} />
                                                     ))}
                                                 </div>
-                                                <input type="text" placeholder="Hoặc dán link ảnh" value={avatarLink} onChange={e=>setAvatarLink(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 mt-3 outline-none focus:border-cyan-500 text-sm" />
+                                                {/* FIX: input link ảnh với validation */}
+                                                <div className="mt-3 relative">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Hoặc dán link ảnh (https://...)"
+                                                        value={avatarLink}
+                                                        onChange={e=>handleAvatarLinkChange(e.target.value)}
+                                                        className={`w-full bg-black border rounded-xl py-3 px-4 outline-none text-sm transition ${
+                                                            !avatarLinkValid ? 'border-red-500 focus:border-red-400' :
+                                                            avatarLink ? 'border-green-500/50 focus:border-green-400' :
+                                                            'border-white/10 focus:border-cyan-500'
+                                                        }`}
+                                                    />
+                                                    {avatarLink && !avatarLinkValid && (
+                                                        <p className="text-[10px] text-red-400 mt-1 ml-1">⚠ Link phải bắt đầu bằng https://</p>
+                                                    )}
+                                                    {avatarLink && avatarLinkValid && (
+                                                        <p className="text-[10px] text-green-400 mt-1 ml-1">✓ Link hợp lệ – xem trước bên trên</p>
+                                                    )}
+                                                </div>
                                             </div>
                                             <button onClick={handleUpdateProfile} className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-bold rounded-xl flex items-center justify-center gap-2">
                                                 <i data-lucide="cloud-upload" className="w-4 h-4" />Cập nhật & Sync Cloud
