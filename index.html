@@ -29,13 +29,10 @@
         .avatar-item { transition: all 0.2s; cursor: pointer; border: 2px solid transparent; border-radius: 9999px; }
         .avatar-item:hover { transform: scale(1.1); border-color: #06b6d4; }
         .avatar-item.selected { border-color: #06b6d4; box-shadow: 0 0 15px #06b6d4; }
-        .avatar-image { background-size: cover; background-position: center; background-repeat: no-repeat; }
         .cloud-badge { animation: float 3s ease-in-out infinite; }
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
         .loading-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
         @keyframes dots { 0%,20%{content:'';} 40%{content:'.';} 60%{content:'..';} 80%,100%{content:'...';} }
-        /* FIX: Avatar image link preview */
-        .avatar-preview-img { width: 100%; height: 100%; object-fit: cover; border-radius: 9999px; display: block; }
     </style>
 </head>
 <body class="animated-bg">
@@ -64,8 +61,8 @@
         const AVATAR_COLLECTION = ['bg-red-500','bg-blue-500','bg-green-500','bg-yellow-500','bg-purple-500','bg-pink-500','bg-indigo-500','bg-teal-500'];
 
         const DEFAULT_USERS = [
-            { user:"Vunguyengiappro", pass:"Giapvu9112008", email:"giapvu104@gmail.com", displayName:"Vũ Nguyên Giáp", avatar:'bg-blue-500', customExams:[], examHistory:[] },
-            { user:"Nguyenthitramy", pass:"nguyenthitramy123", email:"giapvu104@gmail.com", displayName:"Nguyễn Thị Trà My", avatar:'bg-pink-500', customExams:[], examHistory:[] }
+            { user:"Vunguyengiappro", pass:"Giapvu9112008", email:"giapvu104@gmail.com", displayName:"Vũ Nguyên Giáp", avatar:'bg-blue-500', customExams:[], examHistory:[], localTs:0 },
+            { user:"Nguyenthitramy", pass:"nguyenthitramy123", email:"giapvu104@gmail.com", displayName:"Nguyễn Thị Trà My", avatar:'bg-pink-500', customExams:[], examHistory:[], localTs:0 }
         ];
 
         const STORAGE = { USERS:'vng_users', REMEMBER:'vng_remember_v2' };
@@ -74,23 +71,50 @@
         const EMAILJS_TEMPLATE_ID = "template_e700ln2";
 
         // ── Firebase helpers ─────────────────────────────────────────────────
-        const cloudSave = async (u) => {
+
+        // ── BACKUP helpers (localStorage) ────────────────────────────────────
+        // Mỗi lần save thành công → lưu thêm bản backup riêng biệt
+        const saveLocalBackup = (u) => {
             try {
-                const { lastUpdated, ...cleanUser } = u;
-                await db.collection('users').doc(cleanUser.user.toLowerCase()).set({
-                    user: cleanUser.user,
-                    pass: cleanUser.pass,
-                    email: cleanUser.email || '',
-                    displayName: cleanUser.displayName || cleanUser.user,
-                    avatar: cleanUser.avatar || 'bg-blue-500',
-                    customExams: cleanUser.customExams || [],
-                    examHistory: cleanUser.examHistory || [],
-                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                return { ok: true };
-            } catch(e){
-                console.error('cloudSave error:', e);
-                return { ok: false, msg: e.code || e.message || String(e) };
+                localStorage.setItem(
+                    `vng_backup_${u.user.toLowerCase()}`,
+                    JSON.stringify({ ...u, backupTime: Date.now() })
+                );
+            } catch(e) { console.warn('backup write failed', e); }
+        };
+
+        const loadLocalBackup = (username) => {
+            try {
+                const raw = localStorage.getItem(`vng_backup_${username.toLowerCase()}`);
+                return raw ? JSON.parse(raw) : null;
+            } catch { return null; }
+        };
+
+        // FIX 1: cloudSave có retry + soft-delete flag (deleted:false)
+        // Firestore Rules đã chặn DELETE → field này là bảo vệ thêm ở tầng data
+        const cloudSave = async (u, retries = 3) => {
+            const { localTs, ...cloudData } = u;
+            const payload = {
+                ...cloudData,
+                customExams:  cloudData.customExams  || [],
+                examHistory:  cloudData.examHistory  || [],
+                deleted:      false,                          // 🛡️ SOFT-DELETE: không bao giờ set true từ client
+                lastUpdated:  firebase.firestore.FieldValue.serverTimestamp(),
+                localTs:      localTs || Date.now()
+            };
+            for (let i = 0; i < retries; i++) {
+                try {
+                    await db.collection('users').doc(u.user.toLowerCase()).set(payload);
+                    saveLocalBackup({ ...payload, localTs: payload.localTs }); // 💾 backup sau mỗi save thành công
+                    return { ok: true };
+                } catch(e) {
+                    console.warn(`cloudSave attempt ${i+1} failed:`, e.code || e.message);
+                    if (i < retries - 1) {
+                        await new Promise(r => setTimeout(r, 800 * Math.pow(2, i)));
+                    } else {
+                        return { ok: false, msg: e.code || e.message || String(e) };
+                    }
+                }
             }
         };
 
@@ -99,8 +123,10 @@
                 const doc = await db.collection('users').doc(username.toLowerCase()).get();
                 if (!doc.exists) return { ok: true, data: null };
                 const { lastUpdated, ...data } = doc.data();
+                // Nếu bị đánh dấu xoá (ai đó set deleted:true bằng cách nào đó) → coi như không có
+                if (data.deleted === true) return { ok: true, data: null };
                 return { ok: true, data };
-            } catch(e){
+            } catch(e) {
                 console.error('cloudLoad error:', e);
                 return { ok: false, msg: e.code || e.message || String(e), data: null };
             }
@@ -109,20 +135,19 @@
         const cloudLoadAll = async () => {
             try {
                 const snap = await db.collection('users').get();
-                const users = snap.docs.map(d => { const { lastUpdated, ...data } = d.data(); return data; });
+                const users = snap.docs
+                    .map(d => { const { lastUpdated, ...data } = d.data(); return data; })
+                    .filter(u => u.deleted !== true); // 🛡️ Lọc bỏ user bị soft-delete
                 return { ok: true, data: users };
-            } catch(e){
+            } catch(e) {
                 console.error('cloudLoadAll error:', e);
                 return { ok: false, msg: e.code || e.message || String(e), data: [] };
             }
         };
 
         // ── Helpers ──────────────────────────────────────────────────────────
-        // FIX: Dùng <img> tag thay vì backgroundImage để tránh lỗi hiển thị ảnh
         const isImageUrl = (av) => av && av.startsWith('http');
-        const getAvatarClass = (av) => (!av || isImageUrl(av)) ? 'bg-gray-800' : av;
 
-        // ── AvatarDisplay component – FIX màn hình đen khi dùng link ảnh ──
         const AvatarDisplay = ({ avatar, size = 'md', className = '' }) => {
             const [imgError, setImgError] = useState(false);
             const sizeMap = { sm: 'w-7 h-7', md: 'w-10 h-10', lg: 'w-12 h-12' };
@@ -133,16 +158,10 @@
             if (isImageUrl(avatar) && !imgError) {
                 return (
                     <div className={`${sizeClass} rounded-full overflow-hidden flex-shrink-0 ${className}`}>
-                        <img
-                            src={avatar}
-                            alt="avatar"
-                            className="w-full h-full object-cover"
-                            onError={() => setImgError(true)}
-                        />
+                        <img src={avatar} alt="avatar" className="w-full h-full object-cover" onError={() => setImgError(true)} />
                     </div>
                 );
             }
-            // Fallback: màu hoặc icon mặc định
             const bgColor = (!avatar || isImageUrl(avatar)) ? 'bg-cyan-500' : avatar;
             return (
                 <div className={`${sizeClass} rounded-full ${bgColor} flex items-center justify-center flex-shrink-0 ${className}`}>
@@ -159,8 +178,7 @@
             return null;
         };
 
-        // ── Toast ────────────────────────────────────────────────────────────
-        const Toast = ({ message, type, onClose }) => {
+        const Toast = ({ message, onClose }) => {
             useEffect(() => { const t = setTimeout(onClose, 3000); return () => clearTimeout(t); }, []);
             return <div className="toast">{message}</div>;
         };
@@ -186,7 +204,6 @@
             const [showPwField,    setShowPwField]    = useState(false);
             const [isSyncing,      setIsSyncing]      = useState(false);
             const [cloudStatus,    setCloudStatus]    = useState('idle');
-            // ✅ FIX CHÍNH: khai báo cloudErrorMsg state (nguyên nhân màn hình đen)
             const [cloudErrorMsg,  setCloudErrorMsg]  = useState('');
 
             const cloudStatusRef = useRef('idle');
@@ -199,7 +216,7 @@
                             cloudStatusRef.current = 'error';
                             setCloudStatus('error');
                         }
-                    }, 12000);
+                    }, 15000);
                 }
             };
 
@@ -209,7 +226,7 @@
             const [newDisplayName, setNewDisplayName] = useState("");
             const [selAvatar,      setSelAvatar]      = useState("");
             const [avatarLink,     setAvatarLink]     = useState("");
-            const [avatarLinkValid, setAvatarLinkValid] = useState(true); // FIX: kiểm tra link ảnh hợp lệ
+            const [avatarLinkValid, setAvatarLinkValid] = useState(true);
             const [otpStep,        setOtpStep]        = useState(1);
             const [otpInput,       setOtpInput]       = useState("");
             const [newPw,          setNewPw]          = useState("");
@@ -237,6 +254,10 @@
             const usersRef       = useRef([]);
             const currentUserRef = useRef(null);
             const rememberMeRef  = useRef(false);
+
+            // FIX 2: updateQueue – serialise tất cả updateUser calls, chống race condition
+            const updateQueue = useRef(Promise.resolve());
+
             useEffect(() => { usersRef.current = users; },             [users]);
             useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
             useEffect(() => { rememberMeRef.current = rememberMe; },   [rememberMe]);
@@ -245,8 +266,8 @@
             const playSound = (src = "https://www.soundjay.com/mechanical/sounds/gun-shot-01.mp3") =>
                 new Audio(src).play().catch(()=>{});
 
-            const showToast = useCallback((msg, type='info') => {
-                setToast({ message:msg, type });
+            const showToast = useCallback((msg) => {
+                setToast({ message: msg });
                 setTimeout(() => setToast(null), 3100);
             }, []);
 
@@ -256,7 +277,9 @@
                 setIsUnlocked(true);
                 if (mode === 'manual') playSound();
                 setCloudStatusSafe('synced');
-                showToast(`✅ Chào ${foundUser.displayName}`, 'success');
+                showToast(`✅ Chào ${foundUser.displayName}`);
+                // 💾 Auto-backup mỗi khi login thành công
+                saveLocalBackup(foundUser);
             }, [showToast]);
 
             const saveRemember = (u, p) =>
@@ -275,32 +298,61 @@
                 const init = async () => {
                     setCloudStatusSafe('syncing');
 
-                    let latestUsers = null;
+                    // Đọc local trước làm base
+                    const rawLocal = localStorage.getItem(STORAGE.USERS);
+                    const localUsers = rawLocal ? JSON.parse(rawLocal) : null;
+
                     const allRes = await cloudLoadAll();
+
+                    let latestUsers;
+
                     if (allRes.ok && allRes.data.length > 0) {
-                        latestUsers = allRes.data;
+                        // FIX 3: Merge cloud + local, giữ bản MỚI HƠN theo localTs
+                        const cloudMap = {};
+                        allRes.data.forEach(u => { cloudMap[u.user.toLowerCase()] = u; });
+
+                        if (localUsers) {
+                            // Với mỗi user local, so sánh timestamp với cloud
+                            const merged = localUsers.map(lu => {
+                                const cu = cloudMap[lu.user.toLowerCase()];
+                                if (!cu) return lu; // chỉ có local → giữ local
+                                const localTs  = lu.localTs  || 0;
+                                const cloudTs  = cu.localTs  || 0;
+                                return localTs > cloudTs ? lu : cu; // ai mới hơn thắng
+                            });
+                            // Thêm user chỉ có trên cloud
+                            allRes.data.forEach(cu => {
+                                if (!merged.find(u => u.user.toLowerCase() === cu.user.toLowerCase()))
+                                    merged.push(cu);
+                            });
+                            latestUsers = merged;
+                        } else {
+                            latestUsers = allRes.data;
+                        }
+
                         setUsers(latestUsers);
                         usersRef.current = latestUsers;
                         localStorage.setItem(STORAGE.USERS, JSON.stringify(latestUsers));
                         setCloudStatusSafe('synced');
-                        setCloudErrorMsg(''); // ✅ Giờ đã có state, không crash
-                    } else if (!allRes.ok) {
-                        setCloudErrorMsg(allRes.msg || 'Unknown error'); // ✅ Giờ đã có state
-                    }
-
-                    if (!latestUsers) {
-                        const raw = localStorage.getItem(STORAGE.USERS);
-                        latestUsers = raw ? JSON.parse(raw) : DEFAULT_USERS;
-                        setUsers(latestUsers);
-                        usersRef.current = latestUsers;
+                        setCloudErrorMsg('');
+                    } else {
+                        // FIX 4: Nếu cloud lỗi → dùng local, KHÔNG seed DEFAULT_USERS lên cloud
                         if (!allRes.ok) {
+                            setCloudErrorMsg(allRes.msg || 'Unknown error');
                             setCloudStatusSafe('error');
+                            latestUsers = localUsers || DEFAULT_USERS;
                         } else {
-                            for (const u of latestUsers) await cloudSave(u);
+                            // Cloud trống hoàn toàn (mới) → seed DEFAULT_USERS lên cloud
+                            latestUsers = localUsers || DEFAULT_USERS;
+                            for (const u of latestUsers) await cloudSave({ ...u, localTs: Date.now() });
                             setCloudStatusSafe('synced');
                         }
+                        setUsers(latestUsers);
+                        usersRef.current = latestUsers;
+                        localStorage.setItem(STORAGE.USERS, JSON.stringify(latestUsers));
                     }
 
+                    // Auto-login từ remember
                     const rem = getRemember();
                     if (rem?.user && rem?.pass) {
                         setUsername(rem.user);
@@ -310,23 +362,17 @@
                         setIsAutoLogging(true);
 
                         try {
-                            const loadRes = await cloudLoad(rem.user);
-                            let found = (loadRes.ok && loadRes.data) ? loadRes.data
-                                : latestUsers.find(u => u.user.toLowerCase() === rem.user.toLowerCase());
+                            const found = latestUsers.find(
+                                u => u.user.toLowerCase() === rem.user.toLowerCase() && u.pass === rem.pass
+                            );
 
-                            if (found && found.pass === rem.pass) {
-                                const merged = latestUsers.map(u =>
-                                    u.user.toLowerCase() === found.user.toLowerCase() ? found : u
-                                );
-                                setUsers(merged);
-                                usersRef.current = merged;
-                                localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
+                            if (found) {
                                 doLogin(found, 'auto');
                             } else {
                                 clearRemember();
                                 setUsername(""); setPassword(""); setRememberMe(false);
                                 rememberMeRef.current = false;
-                                showToast("⚠️ Phiên đăng nhập hết hạn, vui lòng đăng nhập lại", 'error');
+                                showToast("⚠️ Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
                             }
                         } catch(e) {
                             const found = latestUsers.find(u => u.user.toLowerCase() === rem.user.toLowerCase() && u.pass === rem.pass);
@@ -346,22 +392,33 @@
             const handleLogin = async (e) => {
                 e.preventDefault();
                 setCloudStatusSafe('syncing');
-                showToast('🔄 Đang xác thực...', 'info');
+                showToast('🔄 Đang xác thực...');
 
                 try {
                     const res = await cloudLoad(username);
                     let found = (res.ok && res.data) ? res.data : null;
 
                     if (found && found.pass === password) {
+                        // FIX 5: Khi login, merge cloud với local (giữ bản mới nhất)
+                        const localMatch = usersRef.current.find(u => u.user.toLowerCase() === found.user.toLowerCase());
+                        const localTs = localMatch?.localTs || 0;
+                        const cloudTs = found.localTs || 0;
+                        const winner = localTs > cloudTs ? localMatch : found;
+
+                        // Nếu local mới hơn → push lên cloud ngay
+                        if (localTs > cloudTs && localMatch) {
+                            cloudSave(localMatch).catch(() => {}); // async, không block login
+                        }
+
                         const merged = usersRef.current.map(u =>
-                            u.user.toLowerCase() === found.user.toLowerCase() ? found : u
+                            u.user.toLowerCase() === winner.user.toLowerCase() ? winner : u
                         );
                         setUsers(merged);
                         usersRef.current = merged;
                         localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
-                        if (rememberMeRef.current) saveRemember(found.user, found.pass);
+                        if (rememberMeRef.current) saveRemember(winner.user, winner.pass);
                         else clearRemember();
-                        doLogin(found, 'manual');
+                        doLogin(winner, 'manual');
                     } else {
                         const local = usersRef.current.find(u =>
                             u.user.toLowerCase() === username.toLowerCase() && u.pass === password
@@ -370,15 +427,15 @@
                             if (rememberMeRef.current) saveRemember(local.user, local.pass);
                             else clearRemember();
                             doLogin(local, 'manual');
-                            showToast(`✅ Đăng nhập offline (${local.displayName})`, 'info');
+                            showToast(`✅ Đăng nhập offline (${local.displayName})`);
                         } else {
-                            showToast("❌ Sai tài khoản hoặc mật khẩu", 'error');
+                            showToast("❌ Sai tài khoản hoặc mật khẩu");
                             setCloudStatusSafe('error');
                         }
                     }
                 } catch(err) {
                     console.error(err);
-                    showToast("❌ Có lỗi xảy ra", 'error');
+                    showToast("❌ Có lỗi xảy ra");
                     setCloudStatusSafe('error');
                 }
             };
@@ -396,53 +453,114 @@
                     setActiveIframe("");
                     setIsSidebarOpen(false);
                 }, 1200);
-                showToast("Đã đăng xuất", 'info');
+                showToast("Đã đăng xuất");
             };
 
-            // ── UPDATE USER ──────────────────────────────────────────────────
-            const updateUser = async (updated, silent=false) => {
-                setCloudStatusSafe('syncing');
-                const merged = usersRef.current.map(u => u.user === updated.user ? updated : u);
-                setUsers(merged);
-                usersRef.current = merged;
-                setCurrentUser(updated);
-                currentUserRef.current = updated;
-                if (updated.examHistory) setExamHistory(updated.examHistory);
-                localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
-                if (rememberMeRef.current) saveRemember(updated.user, updated.pass);
-                const ok = await cloudSave(updated);
-                setCloudStatusSafe(ok ? 'synced' : 'error');
-                if (!silent) showToast(ok ? '☁️ Đã lưu & đồng bộ cloud' : '⚠️ Lưu local OK, cloud lỗi', ok ? 'success' : 'error');
-                return merged;
-            };
+            // FIX 6: updateUser có queue – serialise mọi write, chống race condition hoàn toàn
+            const updateUser = useCallback((updated, silent = false) => {
+                // Gắn timestamp local để dùng khi so sánh với cloud
+                const updatedWithTs = { ...updated, localTs: Date.now() };
+
+                // Enqueue: chờ operation trước hoàn thành rồi mới chạy cái này
+                updateQueue.current = updateQueue.current.then(async () => {
+                    try {
+                        setCloudStatusSafe('syncing');
+
+                        // Đọc snapshot mới nhất từ ref (không dùng closure cũ)
+                        const currentSnapshot = usersRef.current;
+                        const merged = currentSnapshot.map(u =>
+                            u.user === updatedWithTs.user ? updatedWithTs : u
+                        );
+
+                        // Cập nhật state + local storage ngay lập tức (optimistic update)
+                        setUsers(merged);
+                        usersRef.current = merged;
+                        setCurrentUser(updatedWithTs);
+                        currentUserRef.current = updatedWithTs;
+                        if (updatedWithTs.examHistory) setExamHistory(updatedWithTs.examHistory);
+                        localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
+                        if (rememberMeRef.current) saveRemember(updatedWithTs.user, updatedWithTs.pass);
+
+                        // Push lên cloud (có retry)
+                        const res = await cloudSave(updatedWithTs);
+                        if (res?.ok) {
+                            setCloudStatusSafe('synced');
+                            if (!silent) showToast('☁️ Đã lưu & đồng bộ cloud');
+                        } else {
+                            setCloudStatusSafe('error');
+                            if (!silent) showToast('⚠️ Đã lưu local, cloud lỗi – sẽ thử lại');
+                            // Retry ngầm sau 5 giây
+                            setTimeout(() => {
+                                cloudSave(updatedWithTs).then(r => {
+                                    if (r?.ok) {
+                                        setCloudStatusSafe('synced');
+                                        showToast('☁️ Đã đồng bộ cloud (retry)');
+                                    }
+                                }).catch(() => {});
+                            }, 5000);
+                        }
+                        return merged;
+                    } catch(err) {
+                        console.error('updateUser error:', err);
+                        setCloudStatusSafe('error');
+                        if (!silent) showToast('⚠️ Có lỗi khi lưu');
+                    }
+                });
+
+                return updateQueue.current;
+            }, [showToast]);
 
             // ── MANUAL SYNC ──────────────────────────────────────────────────
+            // FIX 7: manualSync so sánh timestamp – không ghi đè local mới hơn
+            // + tự động khôi phục từ backup khi cloud mất dữ liệu
             const handleManualSync = async () => {
                 setIsSyncing(true);
                 setCloudStatusSafe('syncing');
-                showToast('🔄 Đang tải dữ liệu mới nhất...', 'info');
+                showToast('🔄 Đang tải dữ liệu mới nhất...');
                 try {
                     const cu = currentUserRef.current;
                     if (!cu) return;
                     const res = await cloudLoad(cu.user);
                     const fresh = (res.ok && res.data) ? res.data : null;
                     if (fresh) {
-                        const merged = usersRef.current.map(u => u.user === fresh.user ? fresh : u);
-                        setUsers(merged);
-                        usersRef.current = merged;
-                        setCurrentUser(fresh);
-                        currentUserRef.current = fresh;
-                        if (fresh.examHistory) setExamHistory(fresh.examHistory);
-                        localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
-                        if (rememberMeRef.current) saveRemember(fresh.user, fresh.pass);
-                        showToast('✅ Đã cập nhật dữ liệu mới nhất!', 'success');
+                        const localTs = cu.localTs || 0;
+                        const cloudTs = fresh.localTs || 0;
+
+                        if (cloudTs > localTs) {
+                            // Cloud mới hơn → áp dụng
+                            const merged = usersRef.current.map(u => u.user === fresh.user ? fresh : u);
+                            setUsers(merged);
+                            usersRef.current = merged;
+                            setCurrentUser(fresh);
+                            currentUserRef.current = fresh;
+                            if (fresh.examHistory) setExamHistory(fresh.examHistory);
+                            localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
+                            if (rememberMeRef.current) saveRemember(fresh.user, fresh.pass);
+                            showToast('✅ Đã cập nhật dữ liệu mới từ cloud!');
+                        } else if (localTs > cloudTs) {
+                            // Local mới hơn → push lên cloud
+                            await cloudSave(cu);
+                            showToast('☁️ Local mới hơn – đã đẩy lên cloud!');
+                        } else {
+                            showToast('✅ Dữ liệu đã đồng bộ, không có gì mới');
+                        }
                         setCloudStatusSafe('synced');
                     } else {
-                        showToast('⚠️ Không tìm thấy dữ liệu trên cloud', 'error');
-                        setCloudStatusSafe('error');
+                        // 🛡️ Cloud không có dữ liệu → thử khôi phục từ backup local
+                        const backup = loadLocalBackup(cu.user);
+                        const restoreSource = backup && (backup.localTs || 0) >= (cu.localTs || 0) ? backup : cu;
+
+                        const saveRes = await cloudSave(restoreSource);
+                        if (saveRes?.ok) {
+                            showToast('🔄 Đã khôi phục & đẩy dữ liệu lên cloud!');
+                            setCloudStatusSafe('synced');
+                        } else {
+                            showToast('⚠️ Không thể đẩy lên cloud, kiểm tra kết nối');
+                            setCloudStatusSafe('error');
+                        }
                     }
                 } catch(e) {
-                    showToast('⚠️ Lỗi kết nối', 'error');
+                    showToast('⚠️ Lỗi kết nối');
                     setCloudStatusSafe('error');
                 } finally {
                     setIsSyncing(false);
@@ -451,18 +569,18 @@
 
             // ── ADD CUSTOM EXAM ──────────────────────────────────────────────
             const handleAddCustomExam = async () => {
-                if (!newExamTitle.trim() || !newExamUrl.trim()) return showToast("Nhập đủ tiêu đề và link", 'error');
-                if (!newExamUrl.startsWith('http')) return showToast("Link phải bắt đầu bằng http://", 'error');
+                if (!newExamTitle.trim() || !newExamUrl.trim()) return showToast("Nhập đủ tiêu đề và link");
+                if (!newExamUrl.startsWith('http')) return showToast("Link phải bắt đầu bằng http://");
                 const updated = { ...currentUserRef.current, customExams:[...(currentUserRef.current.customExams||[]), { title:newExamTitle, url:newExamUrl }] };
                 await updateUser(updated);
                 setNewExamTitle(""); setNewExamUrl("");
-                showToast("✅ Đã thêm đề mới", 'success');
+                showToast("✅ Đã thêm đề mới");
             };
 
             const handleDeleteCustomExam = async (idx) => {
                 const updated = { ...currentUserRef.current, customExams: currentUserRef.current.customExams.filter((_,i)=>i!==idx) };
                 await updateUser(updated);
-                showToast("✅ Đã xóa", 'success');
+                showToast("✅ Đã xóa");
             };
 
             // ── PROFILE OPEN ─────────────────────────────────────────────────
@@ -471,7 +589,7 @@
                 if (!cu) return;
                 setNewDisplayName(cu.displayName);
                 setSelAvatar(cu.avatar);
-                setAvatarLink(isImageUrl(cu.avatar) ? cu.avatar : ""); // FIX: pre-fill link nếu đang dùng ảnh link
+                setAvatarLink(isImageUrl(cu.avatar) ? cu.avatar : "");
                 setAvatarLinkValid(true);
                 setProfileTab('info');
                 setOtpStep(1); setOtpInput(""); setNewPw("");
@@ -480,14 +598,9 @@
                 setShowProfile(true);
             };
 
-            // FIX: Xử lý nhập link ảnh – validate & preview
             const handleAvatarLinkChange = (val) => {
                 setAvatarLink(val);
-                if (!val) {
-                    setAvatarLinkValid(true);
-                    return;
-                }
-                // Kiểm tra link hợp lệ (bắt đầu bằng http)
+                if (!val) { setAvatarLinkValid(true); return; }
                 setAvatarLinkValid(val.startsWith('http'));
             };
 
@@ -506,7 +619,7 @@
                     avatar: finalAvatar
                 };
                 await updateUser(updated, true);
-                showToast("✅ Đã lưu và đồng bộ lên cloud", 'success');
+                showToast("✅ Đã lưu và đồng bộ lên cloud");
                 setShowProfile(false);
             };
 
@@ -522,18 +635,18 @@
                         otp_code: otp, to_email: cu.email, user_name: cu.displayName
                     });
                     setOtpStep(2);
-                    showToast("✅ Mã OTP đã gửi đến email", 'success');
+                    showToast("✅ Mã OTP đã gửi đến email");
                 } catch(e) {
-                    showToast("❌ Gửi email thất bại: " + (e.text || e.message), 'error');
+                    showToast("❌ Gửi email thất bại: " + (e.text || e.message));
                 } finally { setIsLoading(false); }
             };
 
             const verifyOtpAndChangePassword = async () => {
-                if (otpInput.trim() !== otpSentRef.current) return showToast("❌ Mã OTP không đúng", 'error');
-                if (newPw.length < 6) return showToast("Mật khẩu tối thiểu 6 ký tự", 'error');
+                if (otpInput.trim() !== otpSentRef.current) return showToast("❌ Mã OTP không đúng");
+                if (newPw.length < 6) return showToast("Mật khẩu tối thiểu 6 ký tự");
                 const updated = { ...currentUserRef.current, pass: newPw };
                 await updateUser(updated);
-                showToast("✅ Mật khẩu đã thay đổi & sync cloud", 'success');
+                showToast("✅ Mật khẩu đã thay đổi & sync cloud");
                 setShowProfile(false);
             };
 
@@ -541,7 +654,7 @@
             const sendForgotOtp = async () => {
                 const target = forgotUser || currentUserRef.current?.user;
                 const userFound = usersRef.current.find(u => u.user.toLowerCase() === target?.toLowerCase());
-                if (!userFound) return showToast("❌ Tài khoản không tồn tại", 'error');
+                if (!userFound) return showToast("❌ Tài khoản không tồn tại");
                 setIsLoading(true);
                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                 forgotOtpRef.current = otp;
@@ -550,32 +663,25 @@
                         otp_code: otp, to_email: userFound.email, user_name: userFound.displayName
                     });
                     setForgotStep(2);
-                    showToast("✅ Mã OTP đã gửi đến email", 'success');
+                    showToast("✅ Mã OTP đã gửi đến email");
                 } catch(e) {
-                    showToast("❌ Gửi mail thất bại", 'error');
+                    showToast("❌ Gửi mail thất bại");
                 } finally { setIsLoading(false); }
             };
 
             const verifyForgotOtp = () => {
                 if (inputOtp.trim() === forgotOtpRef.current) setForgotStep(3);
-                else showToast("❌ Mã OTP không đúng", 'error');
+                else showToast("❌ Mã OTP không đúng");
             };
 
             const updateForgotPassword = async () => {
-                if (forgotNewPw.length < 6) return showToast("Mật khẩu tối thiểu 6 ký tự", 'error');
+                if (forgotNewPw.length < 6) return showToast("Mật khẩu tối thiểu 6 ký tự");
                 const target = forgotUser || currentUserRef.current?.user;
                 const idx = usersRef.current.findIndex(u => u.user.toLowerCase() === target?.toLowerCase());
                 if (idx !== -1) {
                     const updated = { ...usersRef.current[idx], pass: forgotNewPw };
-                    const merged = usersRef.current.map((u,i) => i===idx ? updated : u);
-                    setUsers(merged);
-                    usersRef.current = merged;
-                    localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
-                    await cloudSave(updated);
-                    if (rememberMeRef.current && currentUserRef.current?.user === updated.user) {
-                        saveRemember(updated.user, updated.pass);
-                    }
-                    showToast("✅ Mật khẩu đã cập nhật & sync cloud", 'success');
+                    await updateUser(updated);
+                    showToast("✅ Mật khẩu đã cập nhật & sync cloud");
                     setShowForgot(false);
                 }
             };
@@ -583,26 +689,26 @@
             // ── HISTORY ──────────────────────────────────────────────────────
             const handleAddScore = async () => {
                 if (!newExamName.trim() || !newScore.trim() || !newMaxScore.trim())
-                    return showToast("❌ Nhập đủ thông tin", 'error');
+                    return showToast("❌ Nhập đủ thông tin");
                 const s = parseFloat(newScore), m = parseFloat(newMaxScore);
-                if (isNaN(s)||isNaN(m)||s<0||m<=0||s>m) return showToast("❌ Điểm số không hợp lệ", 'error');
+                if (isNaN(s)||isNaN(m)||s<0||m<=0||s>m) return showToast("❌ Điểm số không hợp lệ");
                 const entry = { id:Date.now(), examName:newExamName, score:s, maxScore:m, percentage:((s/m)*100).toFixed(1), date:new Date().toLocaleString('vi-VN') };
                 const updatedHistory = [entry, ...(currentUserRef.current.examHistory||[])];
                 await updateUser({ ...currentUserRef.current, examHistory:updatedHistory });
                 setNewExamName(""); setNewScore(""); setNewMaxScore(""); setShowAddScore(false);
-                showToast("✅ Đã thêm điểm", 'success');
+                showToast("✅ Đã thêm điểm");
             };
 
             const handleDeleteHistory = async (id) => {
                 const cu = currentUserRef.current;
                 await updateUser({ ...cu, examHistory: (cu.examHistory||[]).filter(i=>i.id!==id) });
-                showToast("✅ Đã xóa", 'success');
+                showToast("✅ Đã xóa");
             };
 
             const handleClearHistory = async () => {
                 if (!confirm("⚠️ Xóa toàn bộ lịch sử điểm? Không thể hoàn tác!")) return;
                 await updateUser({ ...currentUserRef.current, examHistory:[] });
-                showToast("✅ Đã xóa toàn bộ", 'success');
+                showToast("✅ Đã xóa toàn bộ");
             };
 
             // ── FILTERED EXAMS ───────────────────────────────────────────────
@@ -620,7 +726,6 @@
                 if (id) setVideoId(id);
             };
 
-            // ── Preview avatar đang chọn (trong modal) ───────────────────────
             const previewAvatar = avatarLink && avatarLink.startsWith('http') ? avatarLink
                 : (selAvatar || currentUser?.avatar || 'bg-cyan-500');
 
@@ -629,7 +734,7 @@
             // ════════════════════════════════════════════════════════════════
             return (
                 <div className="relative w-full h-screen text-white overflow-hidden">
-                    {toast && <Toast message={toast.message} type={toast.type} onClose={()=>setToast(null)} />}
+                    {toast && <Toast message={toast.message} onClose={()=>setToast(null)} />}
 
                     {/* AUTO-LOGIN LOADING OVERLAY */}
                     {isAutoLogging && (
@@ -705,7 +810,6 @@
                             {/* SIDEBAR */}
                             <aside className={`fixed lg:static top-0 left-0 z-50 h-full w-[300px] bg-[#0a0a0a]/90 backdrop-blur-xl border-r border-white/5 transition-transform duration-300 flex flex-col ${isSidebarOpen?'translate-x-0':'-translate-x-full lg:translate-x-0'}`}>
                                 <div className="p-6 border-b border-white/10 flex items-center gap-4">
-                                    {/* FIX: dùng AvatarDisplay component */}
                                     <AvatarDisplay avatar={currentUser.avatar} size="lg" className="rounded-xl shadow-lg" />
                                     <div>
                                         <h2 className="text-lg font-black italic text-cyan-400 flex items-center gap-2">VNG PRO <i data-lucide="cloud" className="w-3 h-3 text-cyan-500/50"></i></h2>
@@ -764,7 +868,6 @@
                                         <button onClick={()=>setShowMusicBox(!showMusicBox)} className={`flex items-center gap-2 px-5 py-1.5 rounded-full text-[10px] font-black transition ${showMusicBox?'bg-gradient-to-r from-red-600 to-red-500 text-white':'bg-white/5 text-gray-400'}`}>
                                             <i data-lucide="music" className="w-3.5 h-3.5" />{showMusicBox?'ĐÓNG NHẠC':'MỞ NHẠC'}
                                         </button>
-                                        {/* FIX: dùng AvatarDisplay trong header */}
                                         <button onClick={openProfile} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-full transition">
                                             <AvatarDisplay avatar={currentUser.avatar} size="sm" />
                                             <span className="text-xs font-bold hidden sm:inline">{currentUser.displayName}</span>
@@ -826,7 +929,6 @@
                                             </div>
                                             <div>
                                                 <label className="text-xs text-gray-400 uppercase">Ảnh đại diện</label>
-                                                {/* FIX: Preview avatar hiện tại */}
                                                 <div className="flex items-center gap-4 mt-3 mb-3">
                                                     <div className="relative">
                                                         <AvatarDisplay avatar={previewAvatar} size="lg" className="w-16 h-16 rounded-2xl border-2 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.3)]" />
@@ -844,7 +946,6 @@
                                                         <div key={idx} onClick={()=>{setSelAvatar(color);setAvatarLink("");}} className={`avatar-item w-10 h-10 ${color} ${selAvatar===color&&!avatarLink?'selected':''}`} />
                                                     ))}
                                                 </div>
-                                                {/* FIX: input link ảnh với validation */}
                                                 <div className="mt-3 relative">
                                                     <input
                                                         type="text"
@@ -936,14 +1037,58 @@
                                                 <h3 className="text-sm font-bold text-cyan-400 flex items-center gap-2"><i data-lucide="cloud" className="w-4 h-4"></i>TRẠNG THÁI CLOUD</h3>
                                                 <div className={`p-3 rounded-xl border flex items-center gap-3 ${cloudStatus==='synced'?'bg-green-500/10 border-green-500/30':cloudStatus==='syncing'?'bg-yellow-500/10 border-yellow-500/30':'bg-red-500/10 border-red-500/30'}`}>
                                                     <i data-lucide={cloudStatus==='synced'?'check-circle':cloudStatus==='syncing'?'loader':'alert-circle'} className={`w-5 h-5 ${cloudStatus==='synced'?'text-green-400':cloudStatus==='syncing'?'text-yellow-400 animate-spin':'text-red-400'}`}></i>
-                                                    <p className={`text-xs font-bold ${cloudStatus==='synced'?'text-green-400':cloudStatus==='syncing'?'text-yellow-400':'text-red-400'}`}>
-                                                        {cloudStatus==='synced'?'✓ Đã đồng bộ':cloudStatus==='syncing'?'⟳ Đang đồng bộ...':'✕ Lỗi kết nối'}
-                                                    </p>
+                                                    <div>
+                                                        <p className={`text-xs font-bold ${cloudStatus==='synced'?'text-green-400':cloudStatus==='syncing'?'text-yellow-400':'text-red-400'}`}>
+                                                            {cloudStatus==='synced'?'✓ Đã đồng bộ':cloudStatus==='syncing'?'⟳ Đang đồng bộ...':'✕ Lỗi kết nối'}
+                                                        </p>
+                                                        {cloudStatus==='error' && cloudErrorMsg && (
+                                                            <p className="text-[10px] text-red-300/60 mt-0.5">{cloudErrorMsg}</p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <button onClick={handleManualSync} disabled={isSyncing} className="w-full py-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 text-cyan-400 font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-95">
                                                     <i data-lucide={isSyncing?"loader":"download-cloud"} className={`w-4 h-4 ${isSyncing?'animate-spin':''}`}></i>
                                                     {isSyncing?'ĐANG TẢI...':'TẢI LẠI TỪ CLOUD'}
                                                 </button>
+                                                {/* 🛡️ NÚT KHÔI PHỤC TỪ BACKUP */}
+                                                {(() => {
+                                                    const bk = loadLocalBackup(currentUser.user);
+                                                    if (!bk) return null;
+                                                    const bkTime = bk.backupTime ? new Date(bk.backupTime).toLocaleString('vi-VN') : '?';
+                                                    return (
+                                                        <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 space-y-2">
+                                                            <p className="text-[10px] text-orange-300 font-bold flex items-center gap-2">
+                                                                <i data-lucide="shield-check" className="w-3.5 h-3.5"></i>
+                                                                💾 CÓ BACKUP LOCAL – {bkTime}
+                                                            </p>
+                                                            <p className="text-[9px] text-gray-500">
+                                                                {bk.customExams?.length||0} đề tự thêm · {bk.examHistory?.length||0} lịch sử điểm
+                                                            </p>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (!confirm('Khôi phục dữ liệu từ backup local và đẩy lên cloud?')) return;
+                                                                    const saveRes = await cloudSave(bk);
+                                                                    if (saveRes?.ok) {
+                                                                        const merged = usersRef.current.map(u => u.user === bk.user ? bk : u);
+                                                                        setUsers(merged);
+                                                                        usersRef.current = merged;
+                                                                        setCurrentUser(bk);
+                                                                        currentUserRef.current = bk;
+                                                                        if (bk.examHistory) setExamHistory(bk.examHistory);
+                                                                        localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
+                                                                        showToast('✅ Đã khôi phục từ backup!');
+                                                                        setCloudStatusSafe('synced');
+                                                                    } else {
+                                                                        showToast('⚠️ Khôi phục thất bại, thử lại');
+                                                                    }
+                                                                }}
+                                                                className="w-full py-2 bg-orange-500/20 hover:bg-orange-500 text-orange-400 hover:text-white font-bold rounded-lg text-[10px] transition flex items-center justify-center gap-2"
+                                                            >
+                                                                <i data-lucide="rotate-ccw" className="w-3.5 h-3.5"></i>KHÔI PHỤC TỪ BACKUP
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="bg-white/5 rounded-xl p-3 text-center"><p className="text-2xl font-black text-purple-400">{currentUser.customExams?.length||0}</p><p className="text-[10px] text-gray-500 mt-1 uppercase">Đề tự thêm</p></div>
