@@ -33,17 +33,6 @@
         @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
         .loading-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
         @keyframes dots { 0%,20%{content:'';} 40%{content:'.';} 60%{content:'..';} 80%,100%{content:'...';} }
-        .music-wave span { display: inline-block; width: 3px; background: #22d3ee; border-radius: 2px; animation: wave 1s ease-in-out infinite; }
-        .music-wave span:nth-child(1){animation-delay:0s;height:8px}
-        .music-wave span:nth-child(2){animation-delay:0.15s;height:14px}
-        .music-wave span:nth-child(3){animation-delay:0.3s;height:10px}
-        .music-wave span:nth-child(4){animation-delay:0.1s;height:16px}
-        .music-wave span:nth-child(5){animation-delay:0.25s;height:8px}
-        @keyframes wave { 0%,100%{transform:scaleY(0.4)} 50%{transform:scaleY(1.2)} }
-        .music-wave-paused span { animation-play-state: paused; }
-        .score-auto-badge { animation: pulse-badge 2s ease-in-out infinite; }
-        @keyframes pulse-badge { 0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,0.4)} 50%{box-shadow:0 0 0 6px rgba(251,191,36,0)} }
-        .exam-active-glow { box-shadow: 0 0 20px rgba(34,211,238,0.3); }
     </style>
 </head>
 <body class="animated-bg">
@@ -52,6 +41,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
+        // ── Firebase ──────────────────────────────────────────────────────────
         const firebaseConfig = {
             apiKey: "AIzaSyC3Heu3vs7kFj0iQN-_6-TvMzNuSaBw0Wk",
             authDomain: "vng-pro.firebaseapp.com",
@@ -63,15 +53,59 @@
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
+        // ── Dữ liệu Azota ────────────────────────────────────────────────────
         const AZOTA_DATA = [
             {n:"Sở Tuyên Quang",u:"https://azota.vn/de-thi/qspudc"},{n:"Sở Phú Thọ",u:"https://azota.vn/de-thi/ucnn5u"},{n:"Sở Hải Dương",u:"https://azota.vn/de-thi/kp4qhu"},{n:"Sở Hà Tĩnh",u:"https://azota.vn/de-thi/6uz5y6"},{n:"Sở Bắc Ninh",u:"https://azota.vn/de-thi/gpr4yx"},{n:"Chương Mỹ - Hà Nội",u:"https://azota.vn/de-thi/lzb3tz"},{n:"Sở Ninh Bình",u:"https://azota.vn/de-thi/smbuxs"},{n:"Lê Văn Thịnh - Bắc Ninh",u:"https://azota.vn/de-thi/cujalx"},{n:"Sở Yên Bái",u:"https://azota.vn/de-thi/jaqdmp"},{n:"Hàm Rồng - Thanh Hoá",u:"https://azota.vn/de-thi/kzr49y"},{n:"Sở Hà Nội",u:"https://azota.vn/de-thi/vy06pi"},{n:"Liên trường Nghệ An",u:"https://azota.vn/de-thi/xpoxdw"},{n:"Thanh Hoá",u:"https://azota.vn/de-thi/cz85bc"},{n:"Đề tham khảo BGD",u:"https://azota.vn/de-thi/r1bjtd"},{n:"Thái Thuận",u:"https://azota.vn/de-thi/fbisdd"},{n:"Sở Bắc Giang",u:"https://azota.vn/de-thi/nnm2mr"},{n:"THPT Lạng Giang",u:"https://azota.vn/de-thi/xx0dkf"},{n:"Sở Bắc Giang - Hiệp Hoà",u:"https://azota.vn/de-thi/yd4r1r"},{n:"Sở Bắc Giang (Lần 2)",u:"https://azota.vn/de-thi/pbxm8q"},{n:"Liên trường Nghệ An (Lần 2)",u:"https://azota.vn/de-thi/tnuc8s"},{n:"Sở Tuyên Quang (Lần 2)",u:"https://azota.vn/de-thi/wpbfyc"},{n:"Đề tham khảo 2",u:"https://azota.vn/de-thi/ukr6re"},{n:"Sở Đồng Nai",u:"https://azota.vn/de-thi/eibdbc"},{n:"Sở Hải Phòng",u:"https://azota.vn/de-thi/c18w0f"},{n:"Chuyên Lê Hồng Phong",u:"https://azota.vn/de-thi/d4jjzf"},{n:"Sở Hà Nội (Lần 2)",u:"https://azota.vn/de-thi/gso0qb"},{n:"Chuyên Lê Hồng Phong (Lần 2)",u:"https://azota.vn/de-thi/reycgy"},{n:"Sở Vĩnh Phúc",u:"https://azota.vn/de-thi/hrng2r"},{n:"Chất lượng cao số 1",u:"https://azota.vn/de-thi/2g3g0b"},{n:"Chất lượng cao số 2",u:"https://azota.vn/de-thi/k0on0s"},{n:"Chất lượng cao số 3",u:"https://azota.vn/de-thi/cgo0mp"},{n:"Chất lượng cao số 4",u:"https://azota.vn/de-thi/78earg"},{n:"Chất lượng cao số 5",u:"https://azota.vn/de-thi/ysrlpg"},{n:"Chất lượng cao số 6",u:"https://azota.vn/de-thi/k3qkoz"},{n:"Chất lượng cao số 7",u:"https://azota.vn/de-thi/urezeo"},{n:"Chất lượng cao số 8",u:"https://azota.vn/de-thi/fonnqj"},{n:"Chất lượng cao số 9",u:"https://azota.vn/de-thi/g5s4r1"},{n:"Chất lượng cao số 10",u:"https://azota.vn/de-thi/6bl0wt"},{n:"Chất lượng cao số 11",u:"https://azota.vn/de-thi/01v0gj"},{n:"Chất lượng cao số 12",u:"https://azota.vn/de-thi/eokfel"},{n:"Chất lượng cao số 13",u:"https://azota.vn/de-thi/bcmv9t"},{n:"Chất lượng cao số 14",u:"https://azota.vn/de-thi/u0laze"},{n:"Chất lượng cao số 15",u:"https://azota.vn/de-thi/zpdj3v"},{n:"Chất lượng cao số 16",u:"https://azota.vn/de-thi/46gi9i"},{n:"Chất lượng cao số 17",u:"https://azota.vn/de-thi/uhvh0w"},{n:"Chất lượng cao số 18",u:"https://azota.vn/de-thi/wvytpu"},{n:"Chất lượng cao số 20",u:"https://azota.vn/de-thi/dtr89e"},{n:"Chất lượng cao số 21",u:"https://azota.vn/de-thi/snxng4"},{n:"Chất lượng cao số 22",u:"https://azota.vn/de-thi/mlclur"},{n:"Chất lượng cao số 23",u:"https://azota.vn/de-thi/66jstk"},{n:"Chất lượng cao số 24",u:"https://azota.vn/de-thi/4qnx7u"},{n:"Chất lượng cao số 25",u:"https://azota.vn/de-thi/aoemyh"},{n:"Chất lượng cao số 26",u:"https://azota.vn/de-thi/jnwse5"},{n:"Chất lượng cao số 27",u:"https://azota.vn/de-thi/necdbg"},{n:"Chất lượng cao số 28",u:"https://azota.vn/de-thi/xpfike"},{n:"Chất lượng cao số 29",u:"https://azota.vn/de-thi/7ywbvd"},{n:"Chất lượng cao số 30",u:"https://azota.vn/de-thi/sgnm3p"},{n:"Chất lượng cao số 31",u:"https://azota.vn/de-thi/xc3kds"},{n:"Chất lượng cao số 32",u:"https://azota.vn/de-thi/vh4wya"},{n:"Chất lượng cao số 34",u:"https://azota.vn/de-thi/m1xobd"},{n:"Chất lượng cao số 36",u:"https://azota.vn/de-thi/iycolo"},{n:"Chất lượng cao số 37",u:"https://azota.vn/de-thi/d67aaf"},{n:"Chất lượng cao số 38",u:"https://azota.vn/de-thi/dzu3k3"},{n:"Chất lượng cao số 39",u:"https://azota.vn/de-thi/vxgk3k"},{n:"Tỉnh Hà Tĩnh",u:"https://azota.vn/de-thi/xm6aai"},{n:"Tỉnh Vĩnh Phúc",u:"https://azota.vn/de-thi/fu01q3"},{n:"Tỉnh Hà Tĩnh (Mã 2)",u:"https://azota.vn/de-thi/1kbovs"},{n:"Tỉnh Nghệ An",u:"https://azota.vn/de-thi/hyzxzu"},{n:"Tỉnh Thanh Hóa",u:"https://azota.vn/de-thi/vbneal"},{n:"Tỉnh Ninh Bình",u:"https://azota.vn/de-thi/zg8zpg"},{n:"Đề Hòa Bình",u:"https://azota.vn/de-thi/758gh9"},{n:"Tỉnh Hòa Bình (Mã 2)",u:"https://azota.vn/de-thi/htalzi"},{n:"Tỉnh Quảng Nam",u:"https://azota.vn/de-thi/nyxqgz"},{n:"Tỉnh Vĩnh Phúc (Lần 2)",u:"https://azota.vn/de-thi/xdqw9g"},{n:"Tỉnh Vĩnh Phúc (Lần 3)",u:"https://azota.vn/de-thi/fugne7"},{n:"Tỉnh Vĩnh Phúc (Lần 4)",u:"https://azota.vn/de-thi/zdojb9"},{n:"TP Huế",u:"https://azota.vn/de-thi/jrdkhc"},{n:"Vĩnh Phúc (Mã đề 03)",u:"https://azota.vn/de-thi/a9wk3k"},{n:"Tỉnh Hà Tĩnh (Lần 3)",u:"https://azota.vn/de-thi/t2htpc"},{n:"Chuyên Phan Bội Châu",u:"https://azota.vn/de-thi/mb274o"},{n:"Vĩnh Phúc (Lần 5)",u:"https://azota.vn/de-thi/r7e3rc"},{n:"Đề Hậu Giang",u:"https://azota.vn/de-thi/bfmsiw"},{n:"Hòa Bình (Bản mới)",u:"https://azota.vn/de-thi/1ba1q1"},{n:"Đề Lào Cai",u:"https://azota.vn/de-thi/ondvwe"},{n:"Đề Sơn La",u:"https://azota.vn/de-thi/vsiakb"},{n:"Đề Tây Ninh",u:"https://azota.vn/de-thi/4mvqij"},{n:"Đề Thanh Hóa (Mã 2)",u:"https://azota.vn/de-thi/xkdz7n"},{n:"Đề Bắc Ninh (Lần cuối)",u:"https://azota.vn/de-thi/hhhzpm"}
         ];
 
+        // ── Dữ liệu Đề THPT ──────────────────────────────────────────────────
         const THPT_DATA = [
-            {n:"Đề 89",u:"https://vugiap348-cmd.github.io/vunguyengiappro2/"},{n:"Đề 90",u:"https://vugiap348-cmd.github.io/vunguyengiappro3/"},{n:"Đề 91",u:"https://vugiap348-cmd.github.io/vunguyengiappro4/"},{n:"Đề 92",u:"https://vugiap348-cmd.github.io/vunguyengiappro5/"},{n:"Đề 93",u:"https://vugiap348-cmd.github.io/vunguyengiappro6/"},{n:"Đề 94",u:"https://vugiap348-cmd.github.io/vunguyengiappro7/"},{n:"Đề 95",u:"https://vugiap348-cmd.github.io/vunguyengiappro8/"},{n:"Đề 96",u:"https://vugiap348-cmd.github.io/vunguyengiappro9/"},{n:"Đề 97",u:"https://vugiap348-cmd.github.io/vunguyengiappro10/"},{n:"Đề 98",u:"https://vugiap348-cmd.github.io/vunguyengiappro11/"},{n:"Đề 99",u:"https://vugiap348-cmd.github.io/vunguyengiappro12/"},{n:"Đề 100",u:"https://vugiap348-cmd.github.io/vunguyengiappro13/"},{n:"Đề 101",u:"https://vugiap348-cmd.github.io/vunguyengiappro14/"},{n:"Đề 102",u:"https://vugiap348-cmd.github.io/vunguyengiappro15/"},{n:"Đề 103",u:"https://vugiap348-cmd.github.io/vunguyengiappro16/"},{n:"Đề 104",u:"https://vugiap348-cmd.github.io/vunguyengiappro17/"},{n:"Đề 105",u:"https://vugiap348-cmd.github.io/vunguyengiappro18/"},{n:"Đề 106",u:"https://vugiap348-cmd.github.io/vunguyengiappro19/"},{n:"Đề 107",u:"https://vugiap348-cmd.github.io/vunguyengiappro20/"},{n:"Đề 108",u:"https://vugiap348-cmd.github.io/vunguyengiappro21/"},{n:"Đề 109",u:"https://vugiap348-cmd.github.io/vunguyengiappro22/"},{n:"Đề 110",u:"https://vugiap348-cmd.github.io/vunguyengiappro23/"},{n:"Đề 111",u:"https://vugiap348-cmd.github.io/vunguyengiappro24/"},{n:"Đề 112",u:"https://vugiap348-cmd.github.io/vunguyengiappro25/"},{n:"Đề 113",u:"https://vugiap348-cmd.github.io/vunguyengiappro26/"},{n:"Đề 114",u:"https://vugiap348-cmd.github.io/vunguyengiappro27/"},{n:"Đề 115",u:"https://vugiap348-cmd.github.io/vunguyengiappro28/"},{n:"Đề 116",u:"https://vugiap348-cmd.github.io/vunguyengiappro29/"},{n:"Đề 117",u:"https://vugiap348-cmd.github.io/vunguyengiappro30/"},{n:"Đề 118",u:"https://vugiap348-cmd.github.io/vunguyengiappro31/"},{n:"Đề 119",u:"https://vugiap348-cmd.github.io/vunguyengiappro32/"},{n:"Đề 120",u:"https://vugiap348-cmd.github.io/vunguyengiappro33/"},{n:"Đề 121",u:"https://vugiap348-cmd.github.io/vunguyengiappro34/"},{n:"Đề 122",u:"https://vugiap348-cmd.github.io/vunguyengiappro35/"},{n:"Đề 123",u:"https://vugiap348-cmd.github.io/vunguyengiappro36/"},{n:"Đề 124",u:"https://vugiap348-cmd.github.io/vunguyengiappro37/"},{n:"Đề 125",u:"https://vugiap348-cmd.github.io/vunguyengiappro38/"},{n:"Đề 126",u:"https://vugiap348-cmd.github.io/vunguyengiappro39/"},{n:"Đề 127",u:"https://vugiap348-cmd.github.io/vunguyengiappro40/"},{n:"Đề 128",u:"https://vugiap348-cmd.github.io/vunguyengiappro41/"},{n:"Đề 129",u:"https://vugiap348-cmd.github.io/vunguyengiappro42/"},{n:"Đề 130",u:"https://vugiap348-cmd.github.io/vunguyengiappro43/"}
+            {n:"Đề 89",  u:"https://vugiap348-cmd.github.io/vunguyengiappro2/"},
+            {n:"Đề 90",  u:"https://vugiap348-cmd.github.io/vunguyengiappro3/"},
+            {n:"Đề 91",  u:"https://vugiap348-cmd.github.io/vunguyengiappro4/"},
+            {n:"Đề 92",  u:"https://vugiap348-cmd.github.io/vunguyengiappro5/"},
+            {n:"Đề 93",  u:"https://vugiap348-cmd.github.io/vunguyengiappro6/"},
+            {n:"Đề 94",  u:"https://vugiap348-cmd.github.io/vunguyengiappro7/"},
+            {n:"Đề 95",  u:"https://vugiap348-cmd.github.io/vunguyengiappro8/"},
+            {n:"Đề 96",  u:"https://vugiap348-cmd.github.io/vunguyengiappro9/"},
+            {n:"Đề 97",  u:"https://vugiap348-cmd.github.io/vunguyengiappro10/"},
+            {n:"Đề 98",  u:"https://vugiap348-cmd.github.io/vunguyengiappro11/"},
+            {n:"Đề 99",  u:"https://vugiap348-cmd.github.io/vunguyengiappro12/"},
+            {n:"Đề 100", u:"https://vugiap348-cmd.github.io/vunguyengiappro13/"},
+            {n:"Đề 101", u:"https://vugiap348-cmd.github.io/vunguyengiappro14/"},
+            {n:"Đề 102", u:"https://vugiap348-cmd.github.io/vunguyengiappro15/"},
+            {n:"Đề 103", u:"https://vugiap348-cmd.github.io/vunguyengiappro16/"},
+            {n:"Đề 104", u:"https://vugiap348-cmd.github.io/vunguyengiappro17/"},
+            {n:"Đề 105", u:"https://vugiap348-cmd.github.io/vunguyengiappro18/"},
+            {n:"Đề 106", u:"https://vugiap348-cmd.github.io/vunguyengiappro19/"},
+            {n:"Đề 107", u:"https://vugiap348-cmd.github.io/vunguyengiappro20/"},
+            {n:"Đề 108", u:"https://vugiap348-cmd.github.io/vunguyengiappro21/"},
+            {n:"Đề 109", u:"https://vugiap348-cmd.github.io/vunguyengiappro22/"},
+            {n:"Đề 110", u:"https://vugiap348-cmd.github.io/vunguyengiappro23/"},
+            {n:"Đề 111", u:"https://vugiap348-cmd.github.io/vunguyengiappro24/"},
+            {n:"Đề 112", u:"https://vugiap348-cmd.github.io/vunguyengiappro25/"},
+            {n:"Đề 113", u:"https://vugiap348-cmd.github.io/vunguyengiappro26/"},
+            {n:"Đề 114", u:"https://vugiap348-cmd.github.io/vunguyengiappro27/"},
+            {n:"Đề 115", u:"https://vugiap348-cmd.github.io/vunguyengiappro28/"},
+            {n:"Đề 116", u:"https://vugiap348-cmd.github.io/vunguyengiappro29/"},
+            {n:"Đề 117", u:"https://vugiap348-cmd.github.io/vunguyengiappro30/"},
+            {n:"Đề 118", u:"https://vugiap348-cmd.github.io/vunguyengiappro31/"},
+            {n:"Đề 119", u:"https://vugiap348-cmd.github.io/vunguyengiappro32/"},
+            {n:"Đề 120", u:"https://vugiap348-cmd.github.io/vunguyengiappro33/"},
+            {n:"Đề 121", u:"https://vugiap348-cmd.github.io/vunguyengiappro34/"},
+            {n:"Đề 122", u:"https://vugiap348-cmd.github.io/vunguyengiappro35/"},
+            {n:"Đề 123", u:"https://vugiap348-cmd.github.io/vunguyengiappro36/"},
+            {n:"Đề 124", u:"https://vugiap348-cmd.github.io/vunguyengiappro37/"},
+            {n:"Đề 125", u:"https://vugiap348-cmd.github.io/vunguyengiappro38/"},
+            {n:"Đề 126", u:"https://vugiap348-cmd.github.io/vunguyengiappro39/"},
+            {n:"Đề 127", u:"https://vugiap348-cmd.github.io/vunguyengiappro40/"},
+            {n:"Đề 128", u:"https://vugiap348-cmd.github.io/vunguyengiappro41/"},
+            {n:"Đề 129", u:"https://vugiap348-cmd.github.io/vunguyengiappro42/"},
+            {n:"Đề 130", u:"https://vugiap348-cmd.github.io/vunguyengiappro43/"}
         ];
 
         const AVATAR_COLLECTION = ['bg-red-500','bg-blue-500','bg-green-500','bg-yellow-500','bg-purple-500','bg-pink-500','bg-indigo-500','bg-teal-500'];
+
         const DEFAULT_USERS = [
             { user:"Vunguyengiappro", pass:"Giapvu9112008", email:"giapvu104@gmail.com", displayName:"Vũ Nguyên Giáp", avatar:'bg-blue-500', customExams:[], examHistory:[], localTs:0 },
             { user:"Nguyenthitramy", pass:"nguyenthitramy123", email:"giapvu104@gmail.com", displayName:"Nguyễn Thị Trà My", avatar:'bg-pink-500', customExams:[], examHistory:[], localTs:0 }
@@ -82,75 +116,109 @@
         const EMAILJS_SERVICE_ID = "service_1imebz9";
         const EMAILJS_TEMPLATE_ID = "template_e700ln2";
 
-        // ── Session State Persistence ─────────────────────────────────────────
-        // Lưu trạng thái phiên vào localStorage theo username
-        const SESSION_KEY = (user) => `vng_session_${user.toLowerCase()}`;
-
-        const saveSession = (username, data) => {
-            try { localStorage.setItem(SESSION_KEY(username), JSON.stringify({ ...data, savedAt: Date.now() })); }
-            catch(e) { console.warn('session save fail', e); }
-        };
-
-        const loadSession = (username) => {
-            try {
-                const raw = localStorage.getItem(SESSION_KEY(username));
-                return raw ? JSON.parse(raw) : null;
-            } catch { return null; }
-        };
-
-        // ── Music History Storage ─────────────────────────────────────────────
-        const MUSIC_KEY = (user) => `vng_music_${user.toLowerCase()}`;
-
-        const saveMusicState = (username, state) => {
-            try { localStorage.setItem(MUSIC_KEY(username), JSON.stringify(state)); }
-            catch(e) {}
-        };
-
-        const loadMusicState = (username) => {
-            try {
-                const raw = localStorage.getItem(MUSIC_KEY(username));
-                return raw ? JSON.parse(raw) : null;
-            } catch { return null; }
-        };
-
-        // ── Cloud helpers ─────────────────────────────────────────────────────
+        // ── BACKUP helpers (localStorage) ────────────────────────────────────
         const saveLocalBackup = (u) => {
-            try { localStorage.setItem(`vng_backup_${u.user.toLowerCase()}`, JSON.stringify({ ...u, backupTime: Date.now() })); }
-            catch(e) { console.warn('backup write failed', e); }
+            try {
+                localStorage.setItem(
+                    `vng_backup_${u.user.toLowerCase()}`,
+                    JSON.stringify({ ...u, backupTime: Date.now() })
+                );
+            } catch(e) { console.warn('backup write failed', e); }
         };
+
         const loadLocalBackup = (username) => {
-            try { const raw = localStorage.getItem(`vng_backup_${username.toLowerCase()}`); return raw ? JSON.parse(raw) : null; }
-            catch { return null; }
+            try {
+                const raw = localStorage.getItem(`vng_backup_${username.toLowerCase()}`);
+                return raw ? JSON.parse(raw) : null;
+            } catch { return null; }
         };
+
         const cloudSave = async (u, retries = 3) => {
             const { localTs, ...cloudData } = u;
-            const payload = { ...cloudData, customExams: cloudData.customExams||[], examHistory: cloudData.examHistory||[], deleted:false, lastUpdated: firebase.firestore.FieldValue.serverTimestamp(), localTs: localTs || Date.now() };
+            const payload = {
+                ...cloudData,
+                customExams:  cloudData.customExams  || [],
+                examHistory:  cloudData.examHistory  || [],
+                deleted:      false,
+                lastUpdated:  firebase.firestore.FieldValue.serverTimestamp(),
+                localTs:      localTs || Date.now()
+            };
             for (let i = 0; i < retries; i++) {
-                try { await db.collection('users').doc(u.user.toLowerCase()).set(payload); saveLocalBackup({ ...payload, localTs: payload.localTs }); return { ok: true }; }
-                catch(e) { if (i < retries - 1) { await new Promise(r => setTimeout(r, 800 * Math.pow(2, i))); } else { return { ok: false, msg: e.code || e.message || String(e) }; } }
+                try {
+                    await db.collection('users').doc(u.user.toLowerCase()).set(payload);
+                    saveLocalBackup({ ...payload, localTs: payload.localTs });
+                    return { ok: true };
+                } catch(e) {
+                    console.warn(`cloudSave attempt ${i+1} failed:`, e.code || e.message);
+                    if (i < retries - 1) {
+                        await new Promise(r => setTimeout(r, 800 * Math.pow(2, i)));
+                    } else {
+                        return { ok: false, msg: e.code || e.message || String(e) };
+                    }
+                }
             }
         };
+
         const cloudLoad = async (username) => {
-            try { const doc = await db.collection('users').doc(username.toLowerCase()).get(); if (!doc.exists) return { ok:true, data:null }; const { lastUpdated, ...data } = doc.data(); if (data.deleted === true) return { ok:true, data:null }; return { ok:true, data }; }
-            catch(e) { return { ok:false, msg: e.code || e.message || String(e), data:null }; }
-        };
-        const cloudLoadAll = async () => {
-            try { const snap = await db.collection('users').get(); const users = snap.docs.map(d => { const { lastUpdated, ...data } = d.data(); return data; }).filter(u => u.deleted !== true); return { ok:true, data:users }; }
-            catch(e) { return { ok:false, msg: e.code || e.message || String(e), data:[] }; }
+            try {
+                const doc = await db.collection('users').doc(username.toLowerCase()).get();
+                if (!doc.exists) return { ok: true, data: null };
+                const { lastUpdated, ...data } = doc.data();
+                if (data.deleted === true) return { ok: true, data: null };
+                return { ok: true, data };
+            } catch(e) {
+                console.error('cloudLoad error:', e);
+                return { ok: false, msg: e.code || e.message || String(e), data: null };
+            }
         };
 
+        const cloudLoadAll = async () => {
+            try {
+                const snap = await db.collection('users').get();
+                const users = snap.docs
+                    .map(d => { const { lastUpdated, ...data } = d.data(); return data; })
+                    .filter(u => u.deleted !== true);
+                return { ok: true, data: users };
+            } catch(e) {
+                console.error('cloudLoadAll error:', e);
+                return { ok: false, msg: e.code || e.message || String(e), data: [] };
+            }
+        };
+
+        // ── Helpers ──────────────────────────────────────────────────────────
         const isImageUrl = (av) => av && (av.startsWith('http://') || av.startsWith('https://'));
 
         const AvatarDisplay = ({ avatar, size = 'md', className = '' }) => {
             const [imgError, setImgError] = useState(false);
             const sizeMap = { sm: 'w-7 h-7', md: 'w-10 h-10', lg: 'w-12 h-12' };
             const iconSizeMap = { sm: 'w-4 h-4', md: 'w-5 h-5', lg: 'w-6 h-6' };
-            useEffect(() => { setImgError(false); }, [avatar]);
+            const sizeClass = sizeMap[size] || sizeMap.md;
+            const iconSize = iconSizeMap[size] || iconSizeMap.md;
+
+            useEffect(() => {
+                setImgError(false);
+            }, [avatar]);
+
             if (isImageUrl(avatar) && !imgError) {
-                return <div className={`${sizeMap[size]||sizeMap.md} rounded-full overflow-hidden flex-shrink-0 ${className}`} style={{background:'#111'}}><img src={avatar} alt="avatar" className="w-full h-full object-cover" onError={()=>setImgError(true)} crossOrigin="anonymous" /></div>;
+                return (
+                    <div className={`${sizeClass} rounded-full overflow-hidden flex-shrink-0 ${className}`}
+                         style={{ background: '#111' }}>
+                        <img
+                            src={avatar}
+                            alt="avatar"
+                            className="w-full h-full object-cover"
+                            onError={() => setImgError(true)}
+                            crossOrigin="anonymous"
+                        />
+                    </div>
+                );
             }
             const bgColor = (!avatar || isImageUrl(avatar)) ? 'bg-cyan-500' : avatar;
-            return <div className={`${sizeMap[size]||sizeMap.md} rounded-full ${bgColor} flex items-center justify-center flex-shrink-0 ${className}`}><i data-lucide="user" className={`text-white ${iconSizeMap[size]||iconSizeMap.md}`}></i></div>;
+            return (
+                <div className={`${sizeClass} rounded-full ${bgColor} flex items-center justify-center flex-shrink-0 ${className}`}>
+                    <i data-lucide="user" className={`text-white ${iconSize}`}></i>
+                </div>
+            );
         };
 
         const extractYoutubeId = (url) => {
@@ -166,96 +234,42 @@
             return <div className="toast">{message}</div>;
         };
 
-        // ── Score Input Modal (Auto after exam) ───────────────────────────────
-        const AutoScoreModal = ({ examTitle, onSave, onSkip }) => {
-            const [score, setScore] = useState('');
-            const [maxScore, setMaxScore] = useState('10');
-            return (
-                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl">
-                    <div className="w-full max-w-sm bg-[#0d0d0d] border border-amber-500/40 rounded-[28px] p-7 shadow-[0_0_50px_rgba(251,191,36,0.2)]">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="w-10 h-10 bg-amber-500/20 rounded-xl flex items-center justify-center">
-                                <i data-lucide="trophy" className="w-5 h-5 text-amber-400"></i>
-                            </div>
-                            <div>
-                                <h3 className="text-base font-black text-amber-400">LƯU KẾT QUẢ</h3>
-                                <p className="text-[10px] text-gray-500 mt-0.5 truncate max-w-[200px]">{examTitle}</p>
-                            </div>
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs text-gray-400 uppercase block mb-2">Điểm của bạn</label>
-                                <input
-                                    type="number" step="0.25" placeholder="VD: 8.5" value={score}
-                                    onChange={e=>setScore(e.target.value)}
-                                    className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 text-2xl font-black text-center text-amber-400 outline-none focus:border-amber-500 transition"
-                                    autoFocus
-                                />
-                            </div>
-                            <div>
-                                <label className="text-xs text-gray-400 uppercase block mb-2">Tổng điểm</label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {['10','100','40'].map(v=>(
-                                        <button key={v} onClick={()=>setMaxScore(v)} className={`py-2.5 rounded-xl text-sm font-bold transition ${maxScore===v?'bg-amber-500 text-black':'bg-white/5 text-gray-400 hover:bg-white/10'}`}>{v}</button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3 pt-1">
-                                <button onClick={onSkip} className="py-3 bg-white/5 hover:bg-white/10 text-gray-400 font-bold rounded-xl transition text-sm">Bỏ qua</button>
-                                <button
-                                    onClick={()=>{
-                                        const s = parseFloat(score), m = parseFloat(maxScore);
-                                        if (!score || isNaN(s)||isNaN(m)||s<0||m<=0||s>m) return;
-                                        onSave({ score:s, maxScore:m });
-                                    }}
-                                    disabled={!score || parseFloat(score)<0}
-                                    className="py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black rounded-xl transition disabled:opacity-40 text-sm flex items-center justify-center gap-2"
-                                >
-                                    <i data-lucide="check" className="w-4 h-4"></i>Lưu
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
         // ════════════════════════════════════════════════════════════════════
         //  APP
         // ════════════════════════════════════════════════════════════════════
         const App = () => {
-            const [users,         setUsers]         = useState([]);
-            const [isUnlocked,    setIsUnlocked]    = useState(false);
-            const [isAutoLogging, setIsAutoLogging] = useState(false);
-            const [username,      setUsername]      = useState("");
-            const [password,      setPassword]      = useState("");
-            const [rememberMe,    setRememberMe]    = useState(false);
-            const [currentUser,   setCurrentUser]   = useState(null);
-            const [activeIframe,  setActiveIframe]  = useState("");
-            const [activeExamTitle, setActiveExamTitle] = useState("");
-            const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-            const [searchTerm,    setSearchTerm]    = useState("");
-            const [toast,         setToast]         = useState(null);
-            const [showPwField,   setShowPwField]   = useState(false);
-            const [isSyncing,     setIsSyncing]     = useState(false);
-            const [cloudStatus,   setCloudStatus]   = useState('idle');
-            const [cloudErrorMsg, setCloudErrorMsg] = useState('');
+            const [users,          setUsers]          = useState([]);
+            const [isUnlocked,     setIsUnlocked]     = useState(false);
+            const [isAutoLogging,  setIsAutoLogging]  = useState(false);
+            const [username,       setUsername]       = useState("");
+            const [password,       setPassword]       = useState("");
+            const [rememberMe,     setRememberMe]     = useState(false);
+            const [currentUser,    setCurrentUser]    = useState(null);
+            const [activeIframe,   setActiveIframe]   = useState("");
+            const [isSidebarOpen,  setIsSidebarOpen]  = useState(false);
+            const [searchTerm,     setSearchTerm]     = useState("");
+            const [showMusicBox,   setShowMusicBox]   = useState(false);
+            const [videoId,        setVideoId]        = useState("");
+            const [youtubeInput,   setYoutubeInput]   = useState("");
+            const [toast,          setToast]          = useState(null);
+            const [showPwField,    setShowPwField]    = useState(false);
+            const [isSyncing,      setIsSyncing]      = useState(false);
+            const [cloudStatus,    setCloudStatus]    = useState('idle');
+            const [cloudErrorMsg,  setCloudErrorMsg]  = useState('');
 
-            // ── Music State (persistent) ─────────────────────────────────────
-            const [showMusicBox,    setShowMusicBox]    = useState(false);
-            const [videoId,         setVideoId]         = useState("");
-            const [youtubeInput,    setYoutubeInput]    = useState("");
-            const [isPlaying,       setIsPlaying]       = useState(false);
-            const [musicHistory,    setMusicHistory]    = useState([]); // [{id, title, url, addedAt}]
-            const [showMusicHistory,setShowMusicHistory]= useState(false);
-            const iframeRef = useRef(null);
-
-            // ── Auto Score Modal ─────────────────────────────────────────────
-            const [showAutoScore,   setShowAutoScore]   = useState(false);
-            const [pendingExamForScore, setPendingExamForScore] = useState(null);
-            // Track exam sessions: { url, title, startTime }
-            const examSessionRef = useRef(null);
-            const examTimerRef   = useRef(null);
+            const cloudStatusRef = useRef('idle');
+            const setCloudStatusSafe = (status) => {
+                cloudStatusRef.current = status;
+                setCloudStatus(status);
+                if (status === 'syncing') {
+                    setTimeout(() => {
+                        if (cloudStatusRef.current === 'syncing') {
+                            cloudStatusRef.current = 'error';
+                            setCloudStatus('error');
+                        }
+                    }, 15000);
+                }
+            };
 
             // Profile modal
             const [showProfile,    setShowProfile]    = useState(false);
@@ -263,13 +277,14 @@
             const [newDisplayName, setNewDisplayName] = useState("");
             const [selAvatar,      setSelAvatar]      = useState("");
             const [avatarLink,     setAvatarLink]     = useState("");
-            const [avatarLinkValid,setAvatarLinkValid]= useState(true);
+            const [avatarLinkValid, setAvatarLinkValid] = useState(true);
             const [otpStep,        setOtpStep]        = useState(1);
             const [otpInput,       setOtpInput]       = useState("");
             const [newPw,          setNewPw]          = useState("");
             const [isLoading,      setIsLoading]      = useState(false);
             const [newExamTitle,   setNewExamTitle]   = useState("");
             const [newExamUrl,     setNewExamUrl]     = useState("");
+
             const otpSentRef   = useRef("");
             const forgotOtpRef = useRef("");
 
@@ -290,299 +305,343 @@
             const usersRef       = useRef([]);
             const currentUserRef = useRef(null);
             const rememberMeRef  = useRef(false);
-            const updateQueue    = useRef(Promise.resolve());
-            const cloudStatusRef = useRef('idle');
+
+            const updateQueue = useRef(Promise.resolve());
 
             useEffect(() => { usersRef.current = users; },             [users]);
             useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
             useEffect(() => { rememberMeRef.current = rememberMe; },   [rememberMe]);
 
-            const setCloudStatusSafe = (status) => {
-                cloudStatusRef.current = status;
-                setCloudStatus(status);
-                if (status === 'syncing') {
-                    setTimeout(() => { if (cloudStatusRef.current === 'syncing') { cloudStatusRef.current = 'error'; setCloudStatus('error'); } }, 15000);
-                }
-            };
+            // ── Helpers ─────────────────────────────────────────────────────
+            const playSound = (src = "https://www.soundjay.com/mechanical/sounds/gun-shot-01.mp3") =>
+                new Audio(src).play().catch(()=>{});
 
-            const playSound = (src = "https://www.soundjay.com/mechanical/sounds/gun-shot-01.mp3") => new Audio(src).play().catch(()=>{});
-            const showToast = useCallback((msg) => { setToast({ message: msg }); setTimeout(() => setToast(null), 3100); }, []);
-
-            // ── Save session on every active iframe change ────────────────────
-            useEffect(() => {
-                const cu = currentUserRef.current;
-                if (!cu || !isUnlocked) return;
-                saveSession(cu.user, {
-                    activeIframe,
-                    activeExamTitle,
-                    showMusicBox
-                });
-            }, [activeIframe, activeExamTitle, showMusicBox, isUnlocked]);
-
-            // ── Save music state whenever it changes ─────────────────────────
-            useEffect(() => {
-                const cu = currentUserRef.current;
-                if (!cu || !isUnlocked) return;
-                saveMusicState(cu.user, { videoId, youtubeInput, isPlaying, musicHistory });
-            }, [videoId, youtubeInput, isPlaying, musicHistory, isUnlocked]);
-
-            // ── Restore session after login ───────────────────────────────────
-            const restoreSession = useCallback((user) => {
-                const sess = loadSession(user.user);
-                if (sess) {
-                    if (sess.activeIframe) { setActiveIframe(sess.activeIframe); setActiveExamTitle(sess.activeExamTitle || ''); }
-                    if (sess.showMusicBox) setShowMusicBox(true);
-                }
-                const music = loadMusicState(user.user);
-                if (music) {
-                    if (music.videoId)     { setVideoId(music.videoId); }
-                    if (music.youtubeInput){ setYoutubeInput(music.youtubeInput); }
-                    if (music.musicHistory){ setMusicHistory(music.musicHistory || []); }
-                    // Don't auto-resume playing on load (user needs to click play)
-                    setIsPlaying(false);
-                }
+            const showToast = useCallback((msg) => {
+                setToast({ message: msg });
+                setTimeout(() => setToast(null), 3100);
             }, []);
 
             const doLogin = useCallback((foundUser, mode='manual') => {
                 setCurrentUser(foundUser);
-                currentUserRef.current = foundUser;
                 if (foundUser.examHistory) setExamHistory(foundUser.examHistory);
                 setIsUnlocked(true);
                 if (mode === 'manual') playSound();
                 setCloudStatusSafe('synced');
                 showToast(`✅ Chào ${foundUser.displayName}`);
                 saveLocalBackup(foundUser);
-                // Restore session state
-                setTimeout(() => restoreSession(foundUser), 100);
-            }, [showToast, restoreSession]);
+            }, [showToast]);
 
-            const saveRemember = (u, p) => localStorage.setItem(STORAGE.REMEMBER, JSON.stringify({ user:u, pass:p }));
-            const clearRemember = () => localStorage.removeItem(STORAGE.REMEMBER);
-            const getRemember = () => { try { return JSON.parse(localStorage.getItem(STORAGE.REMEMBER)); } catch { return null; } };
+            const saveRemember = (u, p) =>
+                localStorage.setItem(STORAGE.REMEMBER, JSON.stringify({ user:u, pass:p }));
+            const clearRemember = () =>
+                localStorage.removeItem(STORAGE.REMEMBER);
+            const getRemember = () => {
+                try { return JSON.parse(localStorage.getItem(STORAGE.REMEMBER)); }
+                catch { return null; }
+            };
 
-            // ── INIT ──────────────────────────────────────────────────────────
+            // ── INIT ─────────────────────────────────────────────────────────
             useEffect(() => {
                 if (window.emailjs) window.emailjs.init(EMAILJS_PUBLIC_KEY);
+
                 const init = async () => {
                     setCloudStatusSafe('syncing');
+
                     const rawLocal = localStorage.getItem(STORAGE.USERS);
                     const localUsers = rawLocal ? JSON.parse(rawLocal) : null;
+
                     const allRes = await cloudLoadAll();
+
                     let latestUsers;
+
                     if (allRes.ok && allRes.data.length > 0) {
                         const cloudMap = {};
                         allRes.data.forEach(u => { cloudMap[u.user.toLowerCase()] = u; });
+
                         if (localUsers) {
-                            const merged = localUsers.map(lu => { const cu = cloudMap[lu.user.toLowerCase()]; if (!cu) return lu; return (lu.localTs||0) > (cu.localTs||0) ? lu : cu; });
-                            allRes.data.forEach(cu => { if (!merged.find(u => u.user.toLowerCase() === cu.user.toLowerCase())) merged.push(cu); });
+                            const merged = localUsers.map(lu => {
+                                const cu = cloudMap[lu.user.toLowerCase()];
+                                if (!cu) return lu;
+                                const localTs  = lu.localTs  || 0;
+                                const cloudTs  = cu.localTs  || 0;
+                                return localTs > cloudTs ? lu : cu;
+                            });
+                            allRes.data.forEach(cu => {
+                                if (!merged.find(u => u.user.toLowerCase() === cu.user.toLowerCase()))
+                                    merged.push(cu);
+                            });
                             latestUsers = merged;
-                        } else { latestUsers = allRes.data; }
-                        setCloudStatusSafe('synced'); setCloudErrorMsg('');
+                        } else {
+                            latestUsers = allRes.data;
+                        }
+
+                        setUsers(latestUsers);
+                        usersRef.current = latestUsers;
+                        localStorage.setItem(STORAGE.USERS, JSON.stringify(latestUsers));
+                        setCloudStatusSafe('synced');
+                        setCloudErrorMsg('');
                     } else {
-                        latestUsers = localUsers || DEFAULT_USERS;
-                        if (allRes.ok) { for (const u of latestUsers) await cloudSave({ ...u, localTs: Date.now() }); setCloudStatusSafe('synced'); }
-                        else { setCloudErrorMsg(allRes.msg || 'Unknown error'); setCloudStatusSafe('error'); }
+                        if (!allRes.ok) {
+                            setCloudErrorMsg(allRes.msg || 'Unknown error');
+                            setCloudStatusSafe('error');
+                            latestUsers = localUsers || DEFAULT_USERS;
+                        } else {
+                            latestUsers = localUsers || DEFAULT_USERS;
+                            for (const u of latestUsers) await cloudSave({ ...u, localTs: Date.now() });
+                            setCloudStatusSafe('synced');
+                        }
+                        setUsers(latestUsers);
+                        usersRef.current = latestUsers;
+                        localStorage.setItem(STORAGE.USERS, JSON.stringify(latestUsers));
                     }
-                    setUsers(latestUsers); usersRef.current = latestUsers;
-                    localStorage.setItem(STORAGE.USERS, JSON.stringify(latestUsers));
+
+                    // Auto-login từ remember
                     const rem = getRemember();
                     if (rem?.user && rem?.pass) {
-                        setUsername(rem.user); setPassword(rem.pass); setRememberMe(true); rememberMeRef.current = true; setIsAutoLogging(true);
+                        setUsername(rem.user);
+                        setPassword(rem.pass);
+                        setRememberMe(true);
+                        rememberMeRef.current = true;
+                        setIsAutoLogging(true);
+
                         try {
-                            const found = latestUsers.find(u => u.user.toLowerCase() === rem.user.toLowerCase() && u.pass === rem.pass);
-                            if (found) { doLogin(found, 'auto'); }
-                            else { clearRemember(); setUsername(""); setPassword(""); setRememberMe(false); rememberMeRef.current = false; showToast("⚠️ Phiên đăng nhập hết hạn"); }
+                            const found = latestUsers.find(
+                                u => u.user.toLowerCase() === rem.user.toLowerCase() && u.pass === rem.pass
+                            );
+
+                            if (found) {
+                                doLogin(found, 'auto');
+                            } else {
+                                clearRemember();
+                                setUsername(""); setPassword(""); setRememberMe(false);
+                                rememberMeRef.current = false;
+                                showToast("⚠️ Phiên đăng nhập hết hạn, vui lòng đăng nhập lại");
+                            }
                         } catch(e) {
                             const found = latestUsers.find(u => u.user.toLowerCase() === rem.user.toLowerCase() && u.pass === rem.pass);
                             if (found) doLogin(found, 'auto');
-                        } finally { setIsAutoLogging(false); }
+                        } finally {
+                            setIsAutoLogging(false);
+                        }
                     }
                 };
+
                 init();
             }, []);
 
             useEffect(() => { lucide.createIcons(); });
 
-            // ── EXAM SESSION TRACKING ─────────────────────────────────────────
-            // Khi mở đề, bắt đầu tracking session
-            const handleOpenExam = useCallback((url, title) => {
-                // Nếu đang làm bài khác, offer to save score
-                if (examSessionRef.current && examSessionRef.current.url !== url) {
-                    const duration = Date.now() - examSessionRef.current.startTime;
-                    // Only prompt if user spent at least 30 seconds on the exam
-                    if (duration > 30000) {
-                        setPendingExamForScore({ url: examSessionRef.current.url, title: examSessionRef.current.title });
-                        setShowAutoScore(true);
-                    }
-                }
-                // Clear existing timer
-                if (examTimerRef.current) clearTimeout(examTimerRef.current);
-                // Start new session
-                examSessionRef.current = { url, title, startTime: Date.now() };
-                setActiveIframe(url);
-                setActiveExamTitle(title);
-                setIsSidebarOpen(false);
-            }, []);
-
-            // ── AUTO SCORE SAVE ──────────────────────────────────────────────
-            const handleAutoScoreSave = useCallback(async ({ score, maxScore }) => {
-                const cu = currentUserRef.current;
-                if (!cu || !pendingExamForScore) return;
-                const entry = {
-                    id: Date.now(),
-                    examName: pendingExamForScore.title,
-                    score,
-                    maxScore,
-                    percentage: ((score/maxScore)*100).toFixed(1),
-                    date: new Date().toLocaleString('vi-VN'),
-                    autoSaved: true
-                };
-                const updatedHistory = [entry, ...(cu.examHistory||[])];
-                await updateUser({ ...cu, examHistory: updatedHistory });
-                setShowAutoScore(false);
-                setPendingExamForScore(null);
-                examSessionRef.current = null;
-                showToast(`🏆 Đã lưu điểm: ${score}/${maxScore} (${((score/maxScore)*100).toFixed(1)}%)`);
-            }, [pendingExamForScore, showToast]);
-
-            const handleAutoScoreSkip = useCallback(() => {
-                setShowAutoScore(false);
-                setPendingExamForScore(null);
-                examSessionRef.current = null;
-            }, []);
-
-            // Offer save score when user closes exam (navigate away)
-            const handleCloseExam = useCallback(() => {
-                if (examSessionRef.current) {
-                    const duration = Date.now() - examSessionRef.current.startTime;
-                    if (duration > 30000) {
-                        setPendingExamForScore({ url: examSessionRef.current.url, title: examSessionRef.current.title });
-                        setShowAutoScore(true);
-                    } else {
-                        examSessionRef.current = null;
-                    }
-                }
-                setActiveIframe('');
-                setActiveExamTitle('');
-            }, []);
-
-            // ── LOGIN ─────────────────────────────────────────────────────────
+            // ── LOGIN ────────────────────────────────────────────────────────
             const handleLogin = async (e) => {
                 e.preventDefault();
                 setCloudStatusSafe('syncing');
                 showToast('🔄 Đang xác thực...');
+
                 try {
                     const res = await cloudLoad(username);
                     let found = (res.ok && res.data) ? res.data : null;
+
                     if (found && found.pass === password) {
                         const localMatch = usersRef.current.find(u => u.user.toLowerCase() === found.user.toLowerCase());
-                        const winner = (localMatch?.localTs||0) > (found.localTs||0) ? localMatch : found;
-                        const merged = usersRef.current.map(u => u.user.toLowerCase() === winner.user.toLowerCase() ? winner : u);
-                        setUsers(merged); usersRef.current = merged;
+                        const localTs = localMatch?.localTs || 0;
+                        const cloudTs = found.localTs || 0;
+                        const winner = localTs > cloudTs ? localMatch : found;
+
+                        if (localTs > cloudTs && localMatch) {
+                            cloudSave(localMatch).catch(() => {});
+                        }
+
+                        const merged = usersRef.current.map(u =>
+                            u.user.toLowerCase() === winner.user.toLowerCase() ? winner : u
+                        );
+                        setUsers(merged);
+                        usersRef.current = merged;
                         localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
-                        if (rememberMeRef.current) saveRemember(winner.user, winner.pass); else clearRemember();
+                        if (rememberMeRef.current) saveRemember(winner.user, winner.pass);
+                        else clearRemember();
                         doLogin(winner, 'manual');
                     } else {
-                        const local = usersRef.current.find(u => u.user.toLowerCase() === username.toLowerCase() && u.pass === password);
-                        if (local) { if (rememberMeRef.current) saveRemember(local.user, local.pass); else clearRemember(); doLogin(local, 'manual'); showToast(`✅ Đăng nhập offline (${local.displayName})`); }
-                        else { showToast("❌ Sai tài khoản hoặc mật khẩu"); setCloudStatusSafe('error'); }
+                        const local = usersRef.current.find(u =>
+                            u.user.toLowerCase() === username.toLowerCase() && u.pass === password
+                        );
+                        if (local) {
+                            if (rememberMeRef.current) saveRemember(local.user, local.pass);
+                            else clearRemember();
+                            doLogin(local, 'manual');
+                            showToast(`✅ Đăng nhập offline (${local.displayName})`);
+                        } else {
+                            showToast("❌ Sai tài khoản hoặc mật khẩu");
+                            setCloudStatusSafe('error');
+                        }
                     }
-                } catch(err) { console.error(err); showToast("❌ Có lỗi xảy ra"); setCloudStatusSafe('error'); }
+                } catch(err) {
+                    console.error(err);
+                    showToast("❌ Có lỗi xảy ra");
+                    setCloudStatusSafe('error');
+                }
             };
 
-            // ── LOGOUT ────────────────────────────────────────────────────────
+            // ── LOGOUT ───────────────────────────────────────────────────────
             const handleLogout = () => {
-                // Save score before logout if exam is open
-                if (examSessionRef.current) {
-                    const dur = Date.now() - examSessionRef.current.startTime;
-                    if (dur > 30000) {
-                        setPendingExamForScore({ url: examSessionRef.current.url, title: examSessionRef.current.title });
-                        setShowAutoScore(true);
-                        return; // Wait for user to handle score first
-                    }
-                }
-                _doLogout();
-            };
-            const _doLogout = () => {
                 setIsUnlocked(false);
                 playSound("https://www.soundjay.com/mechanical/sounds/iron-gate-close-1.mp3");
                 if (!rememberMeRef.current) clearRemember();
                 setTimeout(() => {
-                    setCurrentUser(null); currentUserRef.current = null;
-                    setUsername(""); setPassword(""); setActiveIframe(""); setActiveExamTitle("");
-                    setIsSidebarOpen(false); setVideoId(""); setYoutubeInput("");
-                    setIsPlaying(false); examSessionRef.current = null;
+                    setCurrentUser(null);
+                    currentUserRef.current = null;
+                    setUsername("");
+                    setPassword("");
+                    setActiveIframe("");
+                    setIsSidebarOpen(false);
                 }, 1200);
                 showToast("Đã đăng xuất");
             };
 
             const updateUser = useCallback((updated, silent = false) => {
                 const updatedWithTs = { ...updated, localTs: Date.now() };
+
                 updateQueue.current = updateQueue.current.then(async () => {
                     try {
                         setCloudStatusSafe('syncing');
-                        const merged = usersRef.current.map(u => u.user === updatedWithTs.user ? updatedWithTs : u);
-                        setUsers(merged); usersRef.current = merged;
-                        setCurrentUser(updatedWithTs); currentUserRef.current = updatedWithTs;
+
+                        const currentSnapshot = usersRef.current;
+                        const merged = currentSnapshot.map(u =>
+                            u.user === updatedWithTs.user ? updatedWithTs : u
+                        );
+
+                        setUsers(merged);
+                        usersRef.current = merged;
+                        setCurrentUser(updatedWithTs);
+                        currentUserRef.current = updatedWithTs;
                         if (updatedWithTs.examHistory) setExamHistory(updatedWithTs.examHistory);
                         localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
                         if (rememberMeRef.current) saveRemember(updatedWithTs.user, updatedWithTs.pass);
+
                         const res = await cloudSave(updatedWithTs);
-                        if (res?.ok) { setCloudStatusSafe('synced'); if (!silent) showToast('☁️ Đã lưu & đồng bộ cloud'); }
-                        else { setCloudStatusSafe('error'); if (!silent) showToast('⚠️ Đã lưu local, cloud lỗi'); setTimeout(() => { cloudSave(updatedWithTs).then(r => { if (r?.ok) { setCloudStatusSafe('synced'); } }).catch(()=>{}); }, 5000); }
+                        if (res?.ok) {
+                            setCloudStatusSafe('synced');
+                            if (!silent) showToast('☁️ Đã lưu & đồng bộ cloud');
+                        } else {
+                            setCloudStatusSafe('error');
+                            if (!silent) showToast('⚠️ Đã lưu local, cloud lỗi – sẽ thử lại');
+                            setTimeout(() => {
+                                cloudSave(updatedWithTs).then(r => {
+                                    if (r?.ok) {
+                                        setCloudStatusSafe('synced');
+                                        showToast('☁️ Đã đồng bộ cloud (retry)');
+                                    }
+                                }).catch(() => {});
+                            }, 5000);
+                        }
                         return merged;
-                    } catch(err) { console.error('updateUser error:', err); setCloudStatusSafe('error'); if (!silent) showToast('⚠️ Có lỗi khi lưu'); }
+                    } catch(err) {
+                        console.error('updateUser error:', err);
+                        setCloudStatusSafe('error');
+                        if (!silent) showToast('⚠️ Có lỗi khi lưu');
+                    }
                 });
+
                 return updateQueue.current;
             }, [showToast]);
 
+            // ── MANUAL SYNC ──────────────────────────────────────────────────
             const handleManualSync = async () => {
-                setIsSyncing(true); setCloudStatusSafe('syncing'); showToast('🔄 Đang tải dữ liệu mới nhất...');
+                setIsSyncing(true);
+                setCloudStatusSafe('syncing');
+                showToast('🔄 Đang tải dữ liệu mới nhất...');
                 try {
-                    const cu = currentUserRef.current; if (!cu) return;
+                    const cu = currentUserRef.current;
+                    if (!cu) return;
                     const res = await cloudLoad(cu.user);
                     const fresh = (res.ok && res.data) ? res.data : null;
                     if (fresh) {
-                        if ((fresh.localTs||0) > (cu.localTs||0)) {
+                        const localTs = cu.localTs || 0;
+                        const cloudTs = fresh.localTs || 0;
+
+                        if (cloudTs > localTs) {
                             const merged = usersRef.current.map(u => u.user === fresh.user ? fresh : u);
-                            setUsers(merged); usersRef.current = merged; setCurrentUser(fresh); currentUserRef.current = fresh;
+                            setUsers(merged);
+                            usersRef.current = merged;
+                            setCurrentUser(fresh);
+                            currentUserRef.current = fresh;
                             if (fresh.examHistory) setExamHistory(fresh.examHistory);
                             localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
                             if (rememberMeRef.current) saveRemember(fresh.user, fresh.pass);
                             showToast('✅ Đã cập nhật dữ liệu mới từ cloud!');
-                        } else if ((cu.localTs||0) > (fresh.localTs||0)) { await cloudSave(cu); showToast('☁️ Local mới hơn – đã đẩy lên cloud!'); }
-                        else { showToast('✅ Dữ liệu đã đồng bộ'); }
+                        } else if (localTs > cloudTs) {
+                            await cloudSave(cu);
+                            showToast('☁️ Local mới hơn – đã đẩy lên cloud!');
+                        } else {
+                            showToast('✅ Dữ liệu đã đồng bộ, không có gì mới');
+                        }
                         setCloudStatusSafe('synced');
                     } else {
-                        const saveRes = await cloudSave(cu);
-                        if (saveRes?.ok) { showToast('🔄 Đã khôi phục & đẩy lên cloud!'); setCloudStatusSafe('synced'); }
-                        else { showToast('⚠️ Không thể đẩy lên cloud'); setCloudStatusSafe('error'); }
+                        const backup = loadLocalBackup(cu.user);
+                        const restoreSource = backup && (backup.localTs || 0) >= (cu.localTs || 0) ? backup : cu;
+
+                        const saveRes = await cloudSave(restoreSource);
+                        if (saveRes?.ok) {
+                            showToast('🔄 Đã khôi phục & đẩy dữ liệu lên cloud!');
+                            setCloudStatusSafe('synced');
+                        } else {
+                            showToast('⚠️ Không thể đẩy lên cloud, kiểm tra kết nối');
+                            setCloudStatusSafe('error');
+                        }
                     }
-                } catch(e) { showToast('⚠️ Lỗi kết nối'); setCloudStatusSafe('error'); }
-                finally { setIsSyncing(false); }
+                } catch(e) {
+                    showToast('⚠️ Lỗi kết nối');
+                    setCloudStatusSafe('error');
+                } finally {
+                    setIsSyncing(false);
+                }
             };
 
+            // ── ADD CUSTOM EXAM ──────────────────────────────────────────────
             const handleAddCustomExam = async () => {
                 if (!newExamTitle.trim() || !newExamUrl.trim()) return showToast("Nhập đủ tiêu đề và link");
                 if (!newExamUrl.startsWith('http')) return showToast("Link phải bắt đầu bằng http://");
                 const updated = { ...currentUserRef.current, customExams:[...(currentUserRef.current.customExams||[]), { title:newExamTitle, url:newExamUrl }] };
-                await updateUser(updated); setNewExamTitle(""); setNewExamUrl(""); showToast("✅ Đã thêm đề mới");
-            };
-            const handleDeleteCustomExam = async (idx) => {
-                const updated = { ...currentUserRef.current, customExams: currentUserRef.current.customExams.filter((_,i)=>i!==idx) };
-                await updateUser(updated); showToast("✅ Đã xóa");
+                await updateUser(updated);
+                setNewExamTitle(""); setNewExamUrl("");
+                showToast("✅ Đã thêm đề mới");
             };
 
+            const handleDeleteCustomExam = async (idx) => {
+                const updated = { ...currentUserRef.current, customExams: currentUserRef.current.customExams.filter((_,i)=>i!==idx) };
+                await updateUser(updated);
+                showToast("✅ Đã xóa");
+            };
+
+            // ── PROFILE OPEN ─────────────────────────────────────────────────
             const openProfile = () => {
-                const cu = currentUserRef.current; if (!cu) return;
+                const cu = currentUserRef.current;
+                if (!cu) return;
                 setNewDisplayName(cu.displayName);
-                if (isImageUrl(cu.avatar)) { setAvatarLink(cu.avatar); setSelAvatar(""); } else { setAvatarLink(""); setSelAvatar(cu.avatar || 'bg-cyan-500'); }
-                setAvatarLinkValid(true); setProfileTab('info'); setOtpStep(1); setOtpInput(""); setNewPw(""); setNewExamTitle(""); setNewExamUrl(""); otpSentRef.current = ""; setShowProfile(true);
+                if (isImageUrl(cu.avatar)) {
+                    setAvatarLink(cu.avatar);
+                    setSelAvatar("");
+                } else {
+                    setAvatarLink("");
+                    setSelAvatar(cu.avatar || 'bg-cyan-500');
+                }
+                setAvatarLinkValid(true);
+                setProfileTab('info');
+                setOtpStep(1); setOtpInput(""); setNewPw("");
+                setNewExamTitle(""); setNewExamUrl("");
+                otpSentRef.current = "";
+                setShowProfile(true);
             };
 
             const handleAvatarLinkChange = (val) => {
                 setAvatarLink(val);
-                if (!val) { setAvatarLinkValid(true); const cu = currentUserRef.current; if (cu && !isImageUrl(cu.avatar)) setSelAvatar(cu.avatar); return; }
+                if (!val) {
+                    setAvatarLinkValid(true);
+                    const cu = currentUserRef.current;
+                    if (cu && !isImageUrl(cu.avatar)) {
+                        setSelAvatar(cu.avatar);
+                    }
+                    return;
+                }
                 setAvatarLinkValid(val.startsWith('http'));
                 if (val.startsWith('http')) setSelAvatar("");
             };
@@ -594,30 +653,61 @@
             }, [avatarLink, selAvatar, currentUser?.avatar]);
 
             const handleUpdateProfile = async () => {
-                const cu = currentUserRef.current; if (!cu) return;
+                const cu = currentUserRef.current;
+                if (!cu) return;
+
+                const capturedAvatarLink  = avatarLink;
+                const capturedSelAvatar   = selAvatar;
+                const capturedDisplayName = newDisplayName;
+
                 let finalAvatar;
-                if (avatarLink && avatarLink.startsWith('http')) { finalAvatar = avatarLink; }
-                else if (selAvatar && !isImageUrl(selAvatar)) { finalAvatar = selAvatar; }
-                else { finalAvatar = cu.avatar; }
-                await updateUser({ ...cu, displayName: newDisplayName.trim() || cu.displayName, avatar: finalAvatar }, true);
-                showToast("✅ Đã lưu và đồng bộ lên cloud"); setShowProfile(false);
+                if (capturedAvatarLink && capturedAvatarLink.startsWith('http')) {
+                    finalAvatar = capturedAvatarLink;
+                } else if (capturedSelAvatar && !isImageUrl(capturedSelAvatar)) {
+                    finalAvatar = capturedSelAvatar;
+                } else {
+                    finalAvatar = cu.avatar;
+                }
+
+                const updated = {
+                    ...cu,
+                    displayName: capturedDisplayName.trim() || cu.displayName,
+                    avatar: finalAvatar
+                };
+
+                await updateUser(updated, true);
+                showToast("✅ Đã lưu và đồng bộ lên cloud");
+                setShowProfile(false);
             };
 
+            // ── OTP ĐỔI MẬT KHẨU ────────────────────────────────────────────
             const sendOtpForPassword = async () => {
-                const cu = currentUserRef.current; if (!cu) return;
+                const cu = currentUserRef.current;
+                if (!cu) return;
                 setIsLoading(true);
                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                 otpSentRef.current = otp;
-                try { await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { otp_code: otp, to_email: cu.email, user_name: cu.displayName }); setOtpStep(2); showToast("✅ Mã OTP đã gửi đến email"); }
-                catch(e) { showToast("❌ Gửi email thất bại: " + (e.text || e.message)); }
-                finally { setIsLoading(false); }
+                try {
+                    await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+                        otp_code: otp, to_email: cu.email, user_name: cu.displayName
+                    });
+                    setOtpStep(2);
+                    showToast("✅ Mã OTP đã gửi đến email");
+                } catch(e) {
+                    showToast("❌ Gửi email thất bại: " + (e.text || e.message));
+                } finally { setIsLoading(false); }
             };
+
             const verifyOtpAndChangePassword = async () => {
                 if (otpInput.trim() !== otpSentRef.current) return showToast("❌ Mã OTP không đúng");
                 if (newPw.length < 6) return showToast("Mật khẩu tối thiểu 6 ký tự");
-                await updateUser({ ...currentUserRef.current, pass: newPw }); showToast("✅ Mật khẩu đã thay đổi"); setShowProfile(false);
+                const updated = { ...currentUserRef.current, pass: newPw };
+                await updateUser(updated);
+                showToast("✅ Mật khẩu đã thay đổi & sync cloud");
+                setShowProfile(false);
             };
 
+            // ── FORGOT PASSWORD ──────────────────────────────────────────────
             const sendForgotOtp = async () => {
                 const target = forgotUser || currentUserRef.current?.user;
                 const userFound = usersRef.current.find(u => u.user.toLowerCase() === target?.toLowerCase());
@@ -625,73 +715,82 @@
                 setIsLoading(true);
                 const otp = Math.floor(100000 + Math.random() * 900000).toString();
                 forgotOtpRef.current = otp;
-                try { await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, { otp_code: otp, to_email: userFound.email, user_name: userFound.displayName }); setForgotStep(2); showToast("✅ Mã OTP đã gửi đến email"); }
-                catch(e) { showToast("❌ Gửi mail thất bại"); }
-                finally { setIsLoading(false); }
+                try {
+                    await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+                        otp_code: otp, to_email: userFound.email, user_name: userFound.displayName
+                    });
+                    setForgotStep(2);
+                    showToast("✅ Mã OTP đã gửi đến email");
+                } catch(e) {
+                    showToast("❌ Gửi mail thất bại");
+                } finally { setIsLoading(false); }
             };
-            const verifyForgotOtp = () => { if (inputOtp.trim() === forgotOtpRef.current) setForgotStep(3); else showToast("❌ Mã OTP không đúng"); };
+
+            const verifyForgotOtp = () => {
+                if (inputOtp.trim() === forgotOtpRef.current) setForgotStep(3);
+                else showToast("❌ Mã OTP không đúng");
+            };
+
             const updateForgotPassword = async () => {
                 if (forgotNewPw.length < 6) return showToast("Mật khẩu tối thiểu 6 ký tự");
                 const target = forgotUser || currentUserRef.current?.user;
                 const idx = usersRef.current.findIndex(u => u.user.toLowerCase() === target?.toLowerCase());
-                if (idx !== -1) { await updateUser({ ...usersRef.current[idx], pass: forgotNewPw }); showToast("✅ Mật khẩu đã cập nhật"); setShowForgot(false); }
+                if (idx !== -1) {
+                    const updated = { ...usersRef.current[idx], pass: forgotNewPw };
+                    await updateUser(updated);
+                    showToast("✅ Mật khẩu đã cập nhật & sync cloud");
+                    setShowForgot(false);
+                }
             };
 
+            // ── HISTORY ──────────────────────────────────────────────────────
             const handleAddScore = async () => {
-                if (!newExamName.trim() || !newScore.trim() || !newMaxScore.trim()) return showToast("❌ Nhập đủ thông tin");
+                if (!newExamName.trim() || !newScore.trim() || !newMaxScore.trim())
+                    return showToast("❌ Nhập đủ thông tin");
                 const s = parseFloat(newScore), m = parseFloat(newMaxScore);
                 if (isNaN(s)||isNaN(m)||s<0||m<=0||s>m) return showToast("❌ Điểm số không hợp lệ");
                 const entry = { id:Date.now(), examName:newExamName, score:s, maxScore:m, percentage:((s/m)*100).toFixed(1), date:new Date().toLocaleString('vi-VN') };
                 const updatedHistory = [entry, ...(currentUserRef.current.examHistory||[])];
                 await updateUser({ ...currentUserRef.current, examHistory:updatedHistory });
-                setNewExamName(""); setNewScore(""); setNewMaxScore(""); setShowAddScore(false); showToast("✅ Đã thêm điểm");
+                setNewExamName(""); setNewScore(""); setNewMaxScore(""); setShowAddScore(false);
+                showToast("✅ Đã thêm điểm");
             };
+
             const handleDeleteHistory = async (id) => {
                 const cu = currentUserRef.current;
-                await updateUser({ ...cu, examHistory: (cu.examHistory||[]).filter(i=>i.id!==id) }); showToast("✅ Đã xóa");
+                await updateUser({ ...cu, examHistory: (cu.examHistory||[]).filter(i=>i.id!==id) });
+                showToast("✅ Đã xóa");
             };
+
             const handleClearHistory = async () => {
-                if (!confirm("⚠️ Xóa toàn bộ lịch sử điểm?")) return;
-                await updateUser({ ...currentUserRef.current, examHistory:[] }); showToast("✅ Đã xóa toàn bộ");
+                if (!confirm("⚠️ Xóa toàn bộ lịch sử điểm? Không thể hoàn tác!")) return;
+                await updateUser({ ...currentUserRef.current, examHistory:[] });
+                showToast("✅ Đã xóa toàn bộ");
             };
 
-            // ── MUSIC HELPERS ─────────────────────────────────────────────────
-            const handleYoutubeInput = (val) => {
-                setYoutubeInput(val);
-                const id = extractYoutubeId(val);
-                if (id) {
-                    setVideoId(id);
-                    setIsPlaying(true);
-                    // Add to history if not already there
-                    setMusicHistory(prev => {
-                        const exists = prev.find(h => h.id === id);
-                        if (exists) return prev;
-                        // Try to get title from input
-                        const newEntry = { id, url: val, addedAt: Date.now() };
-                        return [newEntry, ...prev].slice(0, 20); // Keep last 20
-                    });
-                }
-            };
-
-            const handlePlayFromHistory = (item) => {
-                setVideoId(item.id);
-                setYoutubeInput(item.url);
-                setIsPlaying(true);
-                setShowMusicHistory(false);
-            };
-
-            const handleRemoveFromHistory = (id) => {
-                setMusicHistory(prev => prev.filter(h => h.id !== id));
-                if (videoId === id) { setVideoId(''); setYoutubeInput(''); setIsPlaying(false); }
-            };
-
+            // ── FILTERED EXAMS ───────────────────────────────────────────────
             const filteredExams = useMemo(() => {
                 const all = [];
-                AZOTA_DATA.forEach((item, i) => all.push({ type:'azota', title:`Đề ${i+1}: ${item.n}`, url:item.u, id:i+1 }));
-                THPT_DATA.forEach((item, i) => all.push({ type:'thpt', title:`${item.n}`, url:item.u, id:`thpt-${i}` }));
-                (currentUser?.customExams||[]).forEach((e,idx) => all.push({ type:'custom', title:e.title, url:e.url, id:`c-${idx}` }));
+                // Azota exams
+                AZOTA_DATA.forEach((item, i) =>
+                    all.push({ type:'azota', title:`Đề ${i+1}: ${item.n}`, url:item.u, id:i+1 })
+                );
+                // THPT exams
+                THPT_DATA.forEach((item, i) =>
+                    all.push({ type:'thpt', title:`${item.n}`, url:item.u, id:`thpt-${i}` })
+                );
+                // Custom exams
+                (currentUser?.customExams||[]).forEach((e,idx) =>
+                    all.push({ type:'custom', title:e.title, url:e.url, id:`c-${idx}` })
+                );
                 return all.filter(e => e.title.toLowerCase().includes(searchTerm.toLowerCase()));
             }, [searchTerm, currentUser?.customExams]);
+
+            const handleYoutubeInput = (e) => {
+                setYoutubeInput(e.target.value);
+                const id = extractYoutubeId(e.target.value);
+                if (id) setVideoId(id);
+            };
 
             // ════════════════════════════════════════════════════════════════
             //  RENDER
@@ -700,21 +799,12 @@
                 <div className="relative w-full h-screen text-white overflow-hidden">
                     {toast && <Toast message={toast.message} onClose={()=>setToast(null)} />}
 
-                    {/* AUTO SCORE MODAL */}
-                    {showAutoScore && pendingExamForScore && (
-                        <AutoScoreModal
-                            examTitle={pendingExamForScore.title}
-                            onSave={handleAutoScoreSave}
-                            onSkip={handleAutoScoreSkip}
-                        />
-                    )}
-
-                    {/* AUTO-LOGIN LOADING */}
+                    {/* AUTO-LOGIN LOADING OVERLAY */}
                     {isAutoLogging && (
                         <div className="fixed inset-0 z-[500] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl">
                             <i data-lucide="cloud-download" className="w-16 h-16 text-cyan-400 mb-6 animate-pulse"></i>
                             <p className="text-cyan-400 font-black text-xl italic tracking-widest uppercase loading-dots">Đang tải</p>
-                            <p className="text-gray-500 text-xs mt-3">Đang khôi phục phiên làm việc</p>
+                            <p className="text-gray-500 text-xs mt-3">Đang tải dữ liệu mới nhất từ cloud</p>
                         </div>
                     )}
 
@@ -736,7 +826,7 @@
                                 <h1 className="mt-4 text-4xl font-black italic tracking-[0.3em] text-cyan-400 uppercase">CLOUD EDITION</h1>
                                 <div className="mt-2 flex items-center justify-center gap-2 text-xs text-cyan-500/70">
                                     <i data-lucide="cloud-download" className="w-4 h-4"></i>
-                                    <span>AUTO SYNC · SESSION RESTORE</span>
+                                    <span>AUTO SYNC ON LOGIN</span>
                                 </div>
                                 <form onSubmit={handleLogin} className="mt-8 backdrop-blur-2xl bg-white/5 p-8 rounded-[40px] border border-cyan-500/30 shadow-[0_0_50px_rgba(6,182,212,0.2)] space-y-5">
                                     <div className="relative">
@@ -755,17 +845,21 @@
                                             <div onClick={()=>setRememberMe(v=>!v)} className={`w-11 h-6 rounded-full transition-all duration-300 relative ${rememberMe ? 'bg-cyan-500' : 'bg-white/10 border border-white/20'}`}>
                                                 <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300 ${rememberMe ? 'left-5' : 'left-0.5'}`}></div>
                                             </div>
-                                            <span className={rememberMe ? 'text-cyan-400 font-bold' : 'text-gray-400'}>{rememberMe ? '✓ Ghi nhớ đăng nhập' : 'Ghi nhớ đăng nhập'}</span>
+                                            <span className={rememberMe ? 'text-cyan-400 font-bold' : 'text-gray-400'}>
+                                                {rememberMe ? '✓ Ghi nhớ đăng nhập' : 'Ghi nhớ đăng nhập'}
+                                            </span>
                                         </label>
-                                        <button type="button" onClick={()=>{setShowForgot(true);setForgotStep(1);setForgotUser("");setInputOtp("");setForgotNewPw("");forgotOtpRef.current="";}} className="text-cyan-400 hover:underline">Quên mật khẩu?</button>
+                                        <button type="button" onClick={()=>{setShowForgot(true); setForgotStep(1); setForgotUser(""); setInputOtp(""); setForgotNewPw(""); forgotOtpRef.current="";}} className="text-cyan-400 hover:underline">Quên mật khẩu?</button>
                                     </div>
                                     {rememberMe && (
                                         <div className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/30 rounded-xl px-4 py-2">
                                             <i data-lucide="info" className="w-4 h-4 text-cyan-400 flex-shrink-0"></i>
-                                            <p className="text-[10px] text-cyan-300">Phiên làm việc & nhạc sẽ được khôi phục tự động</p>
+                                            <p className="text-[10px] text-cyan-300">Lần sau mở app sẽ tự đăng nhập và tải dữ liệu mới nhất từ cloud</p>
                                         </div>
                                     )}
-                                    <button className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-black rounded-2xl shadow-[0_0_25px_rgba(6,182,212,0.6)] active:scale-95 transition-all uppercase tracking-widest">Đăng nhập</button>
+                                    <button className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-black font-black rounded-2xl shadow-[0_0_25px_rgba(6,182,212,0.6)] active:scale-95 transition-all uppercase tracking-widest">
+                                        Đăng nhập
+                                    </button>
                                 </form>
                             </div>
                         </div>
@@ -785,21 +879,6 @@
                                         <div className="mt-1 px-2 py-0.5 bg-cyan-500/20 rounded-full text-[9px] font-bold text-cyan-300 uppercase">{currentUser.displayName}</div>
                                     </div>
                                 </div>
-
-                                {/* Active exam indicator */}
-                                {activeIframe && activeExamTitle && (
-                                    <div className="mx-3 mt-3 px-3 py-2 bg-cyan-500/10 border border-cyan-500/30 rounded-xl">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse flex-shrink-0"></div>
-                                            <p className="text-[10px] font-bold text-cyan-400 uppercase">Đang làm bài</p>
-                                        </div>
-                                        <p className="text-[10px] text-gray-400 mt-1 truncate">{activeExamTitle}</p>
-                                        <button onClick={handleCloseExam} className="mt-2 w-full py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-[10px] font-bold rounded-lg transition flex items-center justify-center gap-1.5">
-                                            <i data-lucide="trophy" className="w-3 h-3"></i>Nộp bài & Lưu điểm
-                                        </button>
-                                    </div>
-                                )}
-
                                 <div className="p-4">
                                     <div className="relative">
                                         <i data-lucide="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4"></i>
@@ -807,29 +886,40 @@
                                     </div>
                                 </div>
                                 <nav className="flex-1 overflow-y-auto custom-scrollbar px-2">
+                                    {/* Custom exams */}
                                     {currentUser.customExams?.length > 0 && (
                                         <>
-                                            <p className="px-2 py-1 mt-2 text-[10px] font-bold text-purple-400 uppercase flex items-center gap-2"><i data-lucide="sparkles" className="w-3 h-3"></i>Đề tự thêm ({currentUser.customExams.length})</p>
+                                            <p className="px-2 py-1 mt-2 text-[10px] font-bold text-purple-400 uppercase flex items-center gap-2">
+                                                <i data-lucide="sparkles" className="w-3 h-3"></i>Đề tự thêm ({currentUser.customExams.length})
+                                            </p>
                                             {filteredExams.filter(e=>e.type==='custom').map(exam=>(
-                                                <button key={exam.id} onClick={()=>handleOpenExam(exam.url, exam.title)} className={`w-full text-left px-3 py-2.5 flex items-center gap-3 rounded-lg hover:bg-white/5 border-l-2 transition-all ${activeIframe===exam.url?'border-purple-500 bg-purple-500/10':'border-transparent text-gray-400'}`}>
+                                                <button key={exam.id} onClick={()=>{setActiveIframe(exam.url);setIsSidebarOpen(false);}} className={`w-full text-left px-3 py-2.5 flex items-center gap-3 rounded-lg hover:bg-white/5 border-l-2 transition-all ${activeIframe===exam.url?'border-purple-500 bg-purple-500/10':'border-transparent text-gray-400'}`}>
                                                     <i data-lucide="link" className="w-4 h-4"></i><span className="text-xs truncate">{exam.title}</span>
                                                 </button>
                                             ))}
                                         </>
                                     )}
+
+                                    {/* THPT exams */}
                                     {filteredExams.filter(e=>e.type==='thpt').length > 0 && (
                                         <>
-                                            <p className="px-2 py-1 mt-4 text-[10px] font-bold text-amber-400 uppercase flex items-center gap-2"><i data-lucide="graduation-cap" className="w-3 h-3"></i>Đề THPT ({THPT_DATA.length})</p>
+                                            <p className="px-2 py-1 mt-4 text-[10px] font-bold text-amber-400 uppercase flex items-center gap-2">
+                                                <i data-lucide="graduation-cap" className="w-3 h-3"></i>Đề THPT ({THPT_DATA.length})
+                                            </p>
                                             {filteredExams.filter(e=>e.type==='thpt').map(exam=>(
-                                                <button key={exam.id} onClick={()=>handleOpenExam(exam.url, exam.title)} className={`w-full text-left px-3 py-2.5 flex items-center gap-3 rounded-lg hover:bg-white/5 border-l-2 transition-all ${activeIframe===exam.url?'border-amber-500 bg-amber-500/10':'border-transparent text-gray-400'}`}>
+                                                <button key={exam.id} onClick={()=>{setActiveIframe(exam.url);setIsSidebarOpen(false);}} className={`w-full text-left px-3 py-2.5 flex items-center gap-3 rounded-lg hover:bg-white/5 border-l-2 transition-all ${activeIframe===exam.url?'border-amber-500 bg-amber-500/10':'border-transparent text-gray-400'}`}>
                                                     <i data-lucide="book-open" className="w-4 h-4 text-amber-500/60"></i><span className="text-xs truncate">{exam.title}</span>
                                                 </button>
                                             ))}
                                         </>
                                     )}
-                                    <p className="px-2 py-1 mt-4 text-[10px] font-bold text-green-600 uppercase flex items-center gap-2"><i data-lucide="file-text" className="w-3 h-3"></i>Đề Azota (1–{AZOTA_DATA.length})</p>
+
+                                    {/* Azota exams */}
+                                    <p className="px-2 py-1 mt-4 text-[10px] font-bold text-green-600 uppercase flex items-center gap-2">
+                                        <i data-lucide="file-text" className="w-3 h-3"></i>Đề Azota (1–{AZOTA_DATA.length})
+                                    </p>
                                     {filteredExams.filter(e=>e.type==='azota').map(exam=>(
-                                        <button key={exam.id} onClick={()=>handleOpenExam(exam.url, exam.title)} className={`w-full text-left px-3 py-2.5 flex items-center gap-3 rounded-lg hover:bg-white/5 border-l-2 transition-all ${activeIframe===exam.url?'border-green-500 bg-green-500/10':'border-transparent text-gray-400'}`}>
+                                        <button key={exam.id} onClick={()=>{setActiveIframe(exam.url);setIsSidebarOpen(false);}} className={`w-full text-left px-3 py-2.5 flex items-center gap-3 rounded-lg hover:bg-white/5 border-l-2 transition-all ${activeIframe===exam.url?'border-green-500 bg-green-500/10':'border-transparent text-gray-400'}`}>
                                             <i data-lucide="external-link" className="w-4 h-4"></i><span className="text-xs truncate">{exam.title}</span>
                                         </button>
                                     ))}
@@ -849,37 +939,16 @@
 
                             {/* MAIN */}
                             <main className="flex-1 flex flex-col h-full overflow-hidden">
-                                <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-black/40 backdrop-blur-lg flex-shrink-0">
+                                <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-black/40 backdrop-blur-lg">
                                     <button onClick={()=>setIsSidebarOpen(true)} className="lg:hidden p-2 text-cyan-400"><i data-lucide="menu" className="w-6 h-6"></i></button>
-                                    <div className="hidden lg:flex items-center gap-3">
-                                        {activeExamTitle && (
-                                            <div className="flex items-center gap-2 px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 rounded-full">
-                                                <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></div>
-                                                <span className="text-xs text-cyan-400 font-bold max-w-[200px] truncate">{activeExamTitle}</span>
-                                                <button onClick={handleCloseExam} className="text-amber-400 hover:text-amber-300 ml-1">
-                                                    <i data-lucide="x" className="w-3.5 h-3.5"></i>
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <button onClick={handleManualSync} disabled={isSyncing} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black transition border disabled:opacity-50 ${cloudStatus==='synced'?'bg-green-500/20 text-green-400 border-green-500/30':'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'}`}>
+                                    <div className="hidden lg:block" />
+                                    <div className="flex items-center gap-3">
+                                        <button onClick={handleManualSync} disabled={isSyncing} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black transition border disabled:opacity-50 ${cloudStatus==='synced'?'bg-green-500/20 text-green-400 border-green-500/30':'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'}`}>
                                             <i data-lucide={isSyncing?"loader":cloudStatus==='synced'?"cloud-upload":"download-cloud"} className={`w-3.5 h-3.5 ${isSyncing?'animate-spin':''}`}></i>
-                                            <span className="hidden sm:inline">{isSyncing?'ĐANG TẢI':cloudStatus==='synced'?'ĐỒNG BỘ':'TẢI'}</span>
+                                            {isSyncing?'Đang tải...':cloudStatus==='synced'?'ĐÃ ĐỒNG BỘ':'TẢI DỮ LIỆU'}
                                         </button>
-                                        {/* MUSIC BUTTON */}
-                                        <button onClick={()=>setShowMusicBox(!showMusicBox)} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black transition ${showMusicBox?'bg-gradient-to-r from-red-600 to-red-500 text-white':'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
-                                            {videoId && isPlaying ? (
-                                                <div className="music-wave flex items-end gap-[2px] h-4">
-                                                    <span></span><span></span><span></span><span></span><span></span>
-                                                </div>
-                                            ) : (
-                                                <i data-lucide="music" className="w-3.5 h-3.5"></i>
-                                            )}
-                                            <span className="hidden sm:inline">{showMusicBox?'ĐÓNG':'NHẠC'}</span>
-                                            {musicHistory.length > 0 && (
-                                                <span className="bg-red-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center">{musicHistory.length}</span>
-                                            )}
+                                        <button onClick={()=>setShowMusicBox(!showMusicBox)} className={`flex items-center gap-2 px-5 py-1.5 rounded-full text-[10px] font-black transition ${showMusicBox?'bg-gradient-to-r from-red-600 to-red-500 text-white':'bg-white/5 text-gray-400'}`}>
+                                            <i data-lucide="music" className="w-3.5 h-3.5" />{showMusicBox?'ĐÓNG NHẠC':'MỞ NHẠC'}
                                         </button>
                                         <button onClick={openProfile} className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-full transition">
                                             <AvatarDisplay avatar={currentUser.avatar} size="sm" />
@@ -887,126 +956,22 @@
                                         </button>
                                     </div>
                                 </header>
-
-                                <div className="flex-1 bg-[#050505] relative overflow-hidden">
+                                <div className="flex-1 bg-[#050505] relative">
                                     {activeIframe ? (
                                         <iframe src={activeIframe} className="w-full h-full border-0" />
                                     ) : (
                                         <div className="w-full h-full flex flex-col items-center justify-center">
                                             <i data-lucide="cloud" className="w-24 h-24 text-cyan-500/10 mb-6 cloud-badge"></i>
                                             <h3 className="text-xl font-black text-gray-700 italic uppercase">Cloud Edition Ready</h3>
-                                            <p className="mt-2 text-gray-600 text-xs">Phiên làm việc được khôi phục tự động</p>
-                                            {examHistory.length > 0 && (
-                                                <div className="mt-6 grid grid-cols-3 gap-3 max-w-sm">
-                                                    <div className="bg-white/3 border border-white/5 rounded-2xl p-3 text-center">
-                                                        <p className="text-2xl font-black text-orange-400">{examHistory.length}</p>
-                                                        <p className="text-[10px] text-gray-600 mt-1">Bài thi</p>
-                                                    </div>
-                                                    <div className="bg-white/3 border border-white/5 rounded-2xl p-3 text-center">
-                                                        <p className="text-2xl font-black text-green-400">{(examHistory.reduce((s,i)=>s+parseFloat(i.percentage),0)/examHistory.length).toFixed(1)}%</p>
-                                                        <p className="text-[10px] text-gray-600 mt-1">Trung bình</p>
-                                                    </div>
-                                                    <div className="bg-white/3 border border-white/5 rounded-2xl p-3 text-center">
-                                                        <p className="text-2xl font-black text-cyan-400">{Math.max(...examHistory.map(i=>parseFloat(i.percentage))).toFixed(1)}%</p>
-                                                        <p className="text-[10px] text-gray-600 mt-1">Cao nhất</p>
-                                                    </div>
-                                                </div>
-                                            )}
+                                            <p className="mt-2 text-gray-600 text-xs">Dữ liệu tự động đồng bộ lên cloud</p>
                                         </div>
                                     )}
-
-                                    {/* ── MUSIC BOX (ENHANCED) ── */}
-                                    <div className={`absolute top-3 right-3 z-[60] w-[340px] transition-all duration-300 ${showMusicBox?'opacity-100 translate-y-0':'opacity-0 pointer-events-none -translate-y-2'}`}>
-                                        <div className="bg-[#0a0a0a]/95 backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.8)]">
-                                            {/* Header */}
-                                            <div className="flex items-center justify-between px-4 pt-4 pb-2">
-                                                <div className="flex items-center gap-2">
-                                                    {videoId && isPlaying ? (
-                                                        <div className="music-wave flex items-end gap-[2px] h-4"><span></span><span></span><span></span><span></span><span></span></div>
-                                                    ) : (
-                                                        <i data-lucide="music" className="w-4 h-4 text-red-400"></i>
-                                                    )}
-                                                    <span className="text-xs font-black text-white uppercase tracking-widest">NHẠC NỀN</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    {musicHistory.length > 0 && (
-                                                        <button onClick={()=>setShowMusicHistory(!showMusicHistory)} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition ${showMusicHistory?'bg-cyan-500/30 text-cyan-400':'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
-                                                            <i data-lucide="history" className="w-3 h-3"></i>
-                                                            Lịch sử ({musicHistory.length})
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* History panel */}
-                                            {showMusicHistory && musicHistory.length > 0 && (
-                                                <div className="mx-3 mb-2 bg-black/60 rounded-2xl overflow-hidden border border-white/5">
-                                                    <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                                                        {musicHistory.map((item, idx) => (
-                                                            <div key={item.id} className={`flex items-center gap-2 px-3 py-2.5 hover:bg-white/5 transition group ${videoId===item.id?'bg-red-500/10':''}`}>
-                                                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${videoId===item.id?'bg-red-500':'bg-white/10'}`}>
-                                                                    {videoId===item.id ? (
-                                                                        <div className="music-wave flex items-end gap-[1px] h-3"><span style={{height:'4px'}}></span><span style={{height:'8px'}}></span><span style={{height:'5px'}}></span></div>
-                                                                    ) : (
-                                                                        <span className="text-[9px] text-gray-400 font-bold">{idx+1}</span>
-                                                                    )}
-                                                                </div>
-                                                                <button onClick={()=>handlePlayFromHistory(item)} className="flex-1 text-left min-w-0">
-                                                                    <p className={`text-xs font-bold truncate ${videoId===item.id?'text-red-400':'text-gray-300'}`}>{item.url}</p>
-                                                                    <p className="text-[9px] text-gray-600">{new Date(item.addedAt).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})}</p>
-                                                                </button>
-                                                                <button onClick={()=>handleRemoveFromHistory(item.id)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 text-red-400 rounded-lg transition">
-                                                                    <i data-lucide="x" className="w-3 h-3"></i>
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Input */}
-                                            <div className="px-3 pb-2">
-                                                <div className="relative">
-                                                    <i data-lucide="youtube" className="absolute left-3 top-1/2 -translate-y-1/2 text-red-400 w-4 h-4"></i>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Dán link YouTube..."
-                                                        className="w-full bg-black/60 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-xs outline-none focus:border-red-500 transition"
-                                                        value={youtubeInput}
-                                                        onChange={e=>handleYoutubeInput(e.target.value)}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Player */}
-                                            {videoId && (
-                                                <div className="px-3 pb-3">
-                                                    <div className="rounded-2xl overflow-hidden">
-                                                        <iframe
-                                                            ref={iframeRef}
-                                                            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
-                                                            className="w-full aspect-video"
-                                                            allow="autoplay; encrypted-media"
-                                                            onLoad={()=>setIsPlaying(true)}
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center justify-between mt-2 px-1">
-                                                        <p className="text-[10px] text-gray-500">Đang phát · Lưu lịch sử tự động</p>
-                                                        <button onClick={()=>{setVideoId('');setYoutubeInput('');setIsPlaying(false);}} className="text-[10px] text-red-400 hover:text-red-300 flex items-center gap-1">
-                                                            <i data-lucide="square" className="w-3 h-3"></i>Dừng
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {!videoId && (
-                                                <div className="px-3 pb-3 text-center py-4">
-                                                    <i data-lucide="music-2" className="w-8 h-8 mx-auto text-gray-700 mb-2"></i>
-                                                    <p className="text-[10px] text-gray-600">Dán link YouTube để nghe nhạc</p>
-                                                    <p className="text-[9px] text-gray-700 mt-1">Lịch sử phát sẽ được lưu tự động</p>
-                                                </div>
-                                            )}
-                                        </div>
+                                </div>
+                                {/* MUSIC BOX */}
+                                <div className={`absolute top-16 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-sm transition-opacity duration-300 ${showMusicBox?'opacity-100':'opacity-0 pointer-events-none'}`}>
+                                    <div className="bg-[#0f0f0f]/90 backdrop-blur-xl border border-white/10 rounded-3xl p-4">
+                                        <input type="text" placeholder="Dán link YouTube..." className="w-full bg-black border border-white/10 rounded-xl py-2 px-4 text-xs outline-none focus:border-red-500" value={youtubeInput} onChange={handleYoutubeInput} />
+                                        {videoId && <iframe src={`https://www.youtube.com/embed/${videoId}?autoplay=1`} className="w-full aspect-video rounded-xl mt-3" allow="autoplay" />}
                                     </div>
                                 </div>
                             </main>
@@ -1019,8 +984,13 @@
                             <div className="w-full max-w-md bg-[#0d0d0d] border border-cyan-500/30 rounded-[32px] relative shadow-[0_0_50px_rgba(6,182,212,0.2)] my-8">
                                 <div className="sticky top-0 bg-[#0d0d0d] rounded-t-[32px] p-6 border-b border-white/10 z-10">
                                     <div className="flex items-center justify-between">
-                                        <h2 className="text-2xl font-black text-cyan-400 flex items-center gap-3"><i data-lucide="user-circle" className="w-7 h-7" />PROFILE<i data-lucide="cloud" className="w-4 h-4 text-cyan-500/50"></i></h2>
-                                        <button onClick={()=>setShowProfile(false)} className="p-2 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-xl transition"><i data-lucide="x" className="w-5 h-5"></i></button>
+                                        <h2 className="text-2xl font-black text-cyan-400 flex items-center gap-3">
+                                            <i data-lucide="user-circle" className="w-7 h-7" />PROFILE
+                                            <i data-lucide="cloud" className="w-4 h-4 text-cyan-500/50"></i>
+                                        </h2>
+                                        <button onClick={()=>setShowProfile(false)} className="p-2 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-xl transition">
+                                            <i data-lucide="x" className="w-5 h-5"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="p-6 pt-0">
@@ -1028,56 +998,119 @@
                                         {[['info','user','Thông tin'],['password','lock','Mật khẩu'],['myexams','book-open','Đề của tôi'],['profile','settings','Hệ thống'],['history','history','Lịch sử điểm']].map(([tab,icon,label],i)=>(
                                             <button key={tab} onClick={()=>setProfileTab(tab)} className={`py-2.5 px-2 rounded-xl text-[10px] font-bold uppercase flex flex-col items-center gap-1 transition-all ${i===4?'col-span-2':''} ${profileTab===tab?'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50':'bg-white/5 text-gray-500 border border-white/5'}`}>
                                                 <i data-lucide={icon} className="w-4 h-4"></i>{label}
-                                                {tab==='history' && examHistory.length > 0 && <span className="bg-orange-500 text-white text-[8px] font-black px-1.5 rounded-full">{examHistory.length}</span>}
                                             </button>
                                         ))}
                                     </div>
 
+                                    {/* INFO */}
                                     {profileTab==='info' && (
                                         <div className="space-y-5">
-                                            <div><label className="text-xs text-gray-400 uppercase">Tên hiển thị</label><input type="text" value={newDisplayName} onChange={e=>setNewDisplayName(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 mt-1 outline-none focus:border-cyan-500" /></div>
+                                            <div>
+                                                <label className="text-xs text-gray-400 uppercase">Tên hiển thị</label>
+                                                <input type="text" value={newDisplayName} onChange={e=>setNewDisplayName(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 mt-1 outline-none focus:border-cyan-500" />
+                                            </div>
                                             <div>
                                                 <label className="text-xs text-gray-400 uppercase">Ảnh đại diện</label>
                                                 <div className="flex items-center gap-4 mt-3 mb-3">
-                                                    <div className="relative"><AvatarDisplay key={previewAvatar} avatar={previewAvatar} size="lg" className="w-16 h-16 rounded-2xl border-2 border-cyan-500/50" /><div className="absolute -bottom-1 -right-1 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center"><i data-lucide="check" className="w-3 h-3 text-black"></i></div></div>
-                                                    <div><p className="text-xs text-gray-400">Xem trước ảnh đại diện</p><p className="text-[10px] text-gray-600 mt-1">Chọn màu hoặc dán link ảnh</p></div>
+                                                    <div className="relative">
+                                                        <AvatarDisplay
+                                                            key={previewAvatar}
+                                                            avatar={previewAvatar}
+                                                            size="lg"
+                                                            className="w-16 h-16 rounded-2xl border-2 border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                                                        />
+                                                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center">
+                                                            <i data-lucide="check" className="w-3 h-3 text-black"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs text-gray-400">Xem trước ảnh đại diện</p>
+                                                        <p className="text-[10px] text-gray-600 mt-1">Chọn màu hoặc dán link ảnh</p>
+                                                    </div>
                                                 </div>
-                                                <div className="flex flex-wrap gap-3 mt-2">{AVATAR_COLLECTION.map((color,idx)=>(<div key={idx} onClick={()=>{ setSelAvatar(color); setAvatarLink(""); }} className={`avatar-item w-10 h-10 ${color} ${selAvatar===color&&!avatarLink?'selected':''}`} />))}</div>
+                                                <div className="flex flex-wrap gap-3 mt-2">
+                                                    {AVATAR_COLLECTION.map((color,idx)=>(
+                                                        <div
+                                                            key={idx}
+                                                            onClick={()=>{ setSelAvatar(color); setAvatarLink(""); }}
+                                                            className={`avatar-item w-10 h-10 ${color} ${selAvatar===color&&!avatarLink?'selected':''}`}
+                                                        />
+                                                    ))}
+                                                </div>
                                                 <div className="mt-3 relative">
-                                                    <input type="text" placeholder="Hoặc dán link ảnh (https://...)" value={avatarLink} onChange={e=>handleAvatarLinkChange(e.target.value)} className={`w-full bg-black border rounded-xl py-3 px-4 outline-none text-sm transition ${!avatarLinkValid ? 'border-red-500' : avatarLink ? 'border-green-500/50' : 'border-white/10 focus:border-cyan-500'}`} />
-                                                    {avatarLink && !avatarLinkValid && <p className="text-[10px] text-red-400 mt-1 ml-1">⚠ Link phải bắt đầu bằng https://</p>}
-                                                    {avatarLink && avatarLinkValid && <p className="text-[10px] text-green-400 mt-1 ml-1">✓ Link hợp lệ</p>}
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Hoặc dán link ảnh (https://...)"
+                                                        value={avatarLink}
+                                                        onChange={e=>handleAvatarLinkChange(e.target.value)}
+                                                        className={`w-full bg-black border rounded-xl py-3 px-4 outline-none text-sm transition ${
+                                                            !avatarLinkValid ? 'border-red-500 focus:border-red-400' :
+                                                            avatarLink ? 'border-green-500/50 focus:border-green-400' :
+                                                            'border-white/10 focus:border-cyan-500'
+                                                        }`}
+                                                    />
+                                                    {avatarLink && !avatarLinkValid && (
+                                                        <p className="text-[10px] text-red-400 mt-1 ml-1">⚠ Link phải bắt đầu bằng https://</p>
+                                                    )}
+                                                    {avatarLink && avatarLinkValid && (
+                                                        <p className="text-[10px] text-green-400 mt-1 ml-1">✓ Link hợp lệ – xem trước bên trên</p>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <button onClick={handleUpdateProfile} className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-bold rounded-xl flex items-center justify-center gap-2"><i data-lucide="cloud-upload" className="w-4 h-4" />Cập nhật & Sync Cloud</button>
+                                            <button onClick={handleUpdateProfile} className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-bold rounded-xl flex items-center justify-center gap-2">
+                                                <i data-lucide="cloud-upload" className="w-4 h-4" />Cập nhật & Sync Cloud
+                                            </button>
                                         </div>
                                     )}
 
+                                    {/* PASSWORD */}
                                     {profileTab==='password' && (
                                         <div className="space-y-5">
-                                            {otpStep===1 && <button onClick={sendOtpForPassword} disabled={isLoading} className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl disabled:opacity-50">{isLoading?'Đang gửi...':'Gửi mã OTP đến email'}</button>}
-                                            {otpStep===2 && (<><p className="text-xs text-gray-400 text-center">Nhập mã OTP được gửi đến email</p><input type="text" inputMode="numeric" placeholder="Mã OTP 6 số" value={otpInput} onChange={e=>setOtpInput(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 outline-none focus:border-green-500 text-center text-2xl font-black tracking-widest" maxLength={6} /><input type="password" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" value={newPw} onChange={e=>setNewPw(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 outline-none focus:border-cyan-500" /><button onClick={verifyOtpAndChangePassword} className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl flex items-center justify-center gap-2"><i data-lucide="cloud-upload" className="w-4 h-4" />Xác thực & Đổi mật khẩu</button></>)}
+                                            {otpStep===1 && (
+                                                <button onClick={sendOtpForPassword} disabled={isLoading} className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl disabled:opacity-50">
+                                                    {isLoading?'Đang gửi...':'Gửi mã OTP đến email'}
+                                                </button>
+                                            )}
+                                            {otpStep===2 && (
+                                                <>
+                                                    <p className="text-xs text-gray-400 text-center">Nhập mã OTP được gửi đến email</p>
+                                                    <input type="text" inputMode="numeric" placeholder="Mã OTP 6 số" value={otpInput} onChange={e=>setOtpInput(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 outline-none focus:border-green-500 text-center text-2xl font-black tracking-widest" maxLength={6} />
+                                                    <input type="password" placeholder="Mật khẩu mới (tối thiểu 6 ký tự)" value={newPw} onChange={e=>setNewPw(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 outline-none focus:border-cyan-500" />
+                                                    <button onClick={verifyOtpAndChangePassword} className="w-full py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl flex items-center justify-center gap-2">
+                                                        <i data-lucide="cloud-upload" className="w-4 h-4" />Xác thực & Đổi mật khẩu
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     )}
 
+                                    {/* MY EXAMS */}
                                     {profileTab==='myexams' && (
                                         <div className="space-y-5">
                                             <div className="space-y-3">
                                                 <input type="text" placeholder="Tiêu đề đề thi" value={newExamTitle} onChange={e=>setNewExamTitle(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 outline-none focus:border-purple-500" />
                                                 <input type="url" placeholder="Link đề thi (https://...)" value={newExamUrl} onChange={e=>setNewExamUrl(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 outline-none focus:border-purple-500" />
-                                                <button onClick={handleAddCustomExam} className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl flex items-center justify-center gap-2"><i data-lucide="plus" className="w-4 h-4" />THÊM & SYNC CLOUD</button>
+                                                <button onClick={handleAddCustomExam} className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl flex items-center justify-center gap-2">
+                                                    <i data-lucide="cloud-upload" className="w-4 h-4" /><i data-lucide="plus" className="w-4 h-4" />THÊM & SYNC CLOUD
+                                                </button>
                                             </div>
                                             <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-2">
                                                 {currentUser.customExams?.length > 0 ? currentUser.customExams.map((exam,idx)=>(
                                                     <div key={idx} className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10">
-                                                        <div className="flex-1 min-w-0"><p className="text-sm font-bold text-purple-300 truncate">{exam.title}</p><p className="text-[10px] text-gray-400 truncate">{exam.url}</p></div>
-                                                        <button onClick={()=>handleDeleteCustomExam(idx)} className="ml-2 p-2 bg-red-500/20 hover:bg-red-500 rounded-lg text-red-400 hover:text-white transition"><i data-lucide="trash-2" className="w-4 h-4"></i></button>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-bold text-purple-300 truncate">{exam.title}</p>
+                                                            <p className="text-[10px] text-gray-400 truncate">{exam.url}</p>
+                                                        </div>
+                                                        <button onClick={()=>handleDeleteCustomExam(idx)} className="ml-2 p-2 bg-red-500/20 hover:bg-red-500 rounded-lg text-red-400 hover:text-white transition">
+                                                            <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                        </button>
                                                     </div>
                                                 )) : <p className="text-center text-gray-500 py-4 text-xs">Chưa có đề tự thêm</p>}
                                             </div>
                                         </div>
                                     )}
 
+                                    {/* PROFILE / SYSTEM */}
                                     {profileTab==='profile' && (
                                         <div className="space-y-6">
                                             <div className="bg-white/5 rounded-2xl p-4 space-y-4">
@@ -1085,25 +1118,64 @@
                                                 <div className="space-y-3">
                                                     <div><label className="text-xs text-gray-400 uppercase block mb-2">Tên đăng nhập</label><div className="bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-300">{currentUser.user}</div></div>
                                                     <div><label className="text-xs text-gray-400 uppercase block mb-2">Email</label><div className="bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-sm text-gray-300">{currentUser.email}</div></div>
-                                                    <button onClick={handleUpdateProfile} className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95"><i data-lucide="cloud-upload" className="w-4 h-4" />Lưu & Đồng bộ Cloud</button>
+                                                    <div><label className="text-xs text-gray-400 uppercase block mb-2">Tên hiển thị</label><input type="text" value={newDisplayName} onChange={e=>setNewDisplayName(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-3 px-4 outline-none focus:border-green-500 transition" /></div>
+                                                    <button onClick={handleUpdateProfile} className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95">
+                                                        <i data-lucide="cloud-upload" className="w-4 h-4" />Lưu & Đồng bộ Cloud
+                                                    </button>
                                                 </div>
                                             </div>
                                             <div className="bg-white/5 rounded-2xl p-4 space-y-3">
                                                 <h3 className="text-sm font-bold text-cyan-400 flex items-center gap-2"><i data-lucide="cloud" className="w-4 h-4"></i>TRẠNG THÁI CLOUD</h3>
                                                 <div className={`p-3 rounded-xl border flex items-center gap-3 ${cloudStatus==='synced'?'bg-green-500/10 border-green-500/30':cloudStatus==='syncing'?'bg-yellow-500/10 border-yellow-500/30':'bg-red-500/10 border-red-500/30'}`}>
                                                     <i data-lucide={cloudStatus==='synced'?'check-circle':cloudStatus==='syncing'?'loader':'alert-circle'} className={`w-5 h-5 ${cloudStatus==='synced'?'text-green-400':cloudStatus==='syncing'?'text-yellow-400 animate-spin':'text-red-400'}`}></i>
-                                                    <div><p className={`text-xs font-bold ${cloudStatus==='synced'?'text-green-400':cloudStatus==='syncing'?'text-yellow-400':'text-red-400'}`}>{cloudStatus==='synced'?'✓ Đã đồng bộ':cloudStatus==='syncing'?'⟳ Đang đồng bộ...':'✕ Lỗi kết nối'}</p>{cloudStatus==='error' && cloudErrorMsg && <p className="text-[10px] text-red-300/60 mt-0.5">{cloudErrorMsg}</p>}</div>
+                                                    <div>
+                                                        <p className={`text-xs font-bold ${cloudStatus==='synced'?'text-green-400':cloudStatus==='syncing'?'text-yellow-400':'text-red-400'}`}>
+                                                            {cloudStatus==='synced'?'✓ Đã đồng bộ':cloudStatus==='syncing'?'⟳ Đang đồng bộ...':'✕ Lỗi kết nối'}
+                                                        </p>
+                                                        {cloudStatus==='error' && cloudErrorMsg && (
+                                                            <p className="text-[10px] text-red-300/60 mt-0.5">{cloudErrorMsg}</p>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <button onClick={handleManualSync} disabled={isSyncing} className="w-full py-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 text-cyan-400 font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"><i data-lucide={isSyncing?"loader":"download-cloud"} className={`w-4 h-4 ${isSyncing?'animate-spin':''}`}></i>{isSyncing?'ĐANG TẢI...':'TẢI LẠI TỪ CLOUD'}</button>
+                                                <button onClick={handleManualSync} disabled={isSyncing} className="w-full py-3 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 text-cyan-400 font-bold rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 active:scale-95">
+                                                    <i data-lucide={isSyncing?"loader":"download-cloud"} className={`w-4 h-4 ${isSyncing?'animate-spin':''}`}></i>
+                                                    {isSyncing?'ĐANG TẢI...':'TẢI LẠI TỪ CLOUD'}
+                                                </button>
                                                 {(() => {
                                                     const bk = loadLocalBackup(currentUser.user);
                                                     if (!bk) return null;
                                                     const bkTime = bk.backupTime ? new Date(bk.backupTime).toLocaleString('vi-VN') : '?';
                                                     return (
                                                         <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 space-y-2">
-                                                            <p className="text-[10px] text-orange-300 font-bold">💾 BACKUP LOCAL – {bkTime}</p>
-                                                            <p className="text-[9px] text-gray-500">{bk.customExams?.length||0} đề tự thêm · {bk.examHistory?.length||0} lịch sử điểm</p>
-                                                            <button onClick={async()=>{if(!confirm('Khôi phục từ backup?'))return;const res=await cloudSave(bk);if(res?.ok){const m=usersRef.current.map(u=>u.user===bk.user?bk:u);setUsers(m);usersRef.current=m;setCurrentUser(bk);currentUserRef.current=bk;if(bk.examHistory)setExamHistory(bk.examHistory);localStorage.setItem(STORAGE.USERS,JSON.stringify(m));showToast('✅ Đã khôi phục!');setCloudStatusSafe('synced');}else{showToast('⚠️ Thất bại');}}} className="w-full py-2 bg-orange-500/20 hover:bg-orange-500 text-orange-400 hover:text-white font-bold rounded-lg text-[10px] transition flex items-center justify-center gap-2"><i data-lucide="rotate-ccw" className="w-3.5 h-3.5"></i>KHÔI PHỤC TỪ BACKUP</button>
+                                                            <p className="text-[10px] text-orange-300 font-bold flex items-center gap-2">
+                                                                <i data-lucide="shield-check" className="w-3.5 h-3.5"></i>
+                                                                💾 CÓ BACKUP LOCAL – {bkTime}
+                                                            </p>
+                                                            <p className="text-[9px] text-gray-500">
+                                                                {bk.customExams?.length||0} đề tự thêm · {bk.examHistory?.length||0} lịch sử điểm
+                                                            </p>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (!confirm('Khôi phục dữ liệu từ backup local và đẩy lên cloud?')) return;
+                                                                    const saveRes = await cloudSave(bk);
+                                                                    if (saveRes?.ok) {
+                                                                        const merged = usersRef.current.map(u => u.user === bk.user ? bk : u);
+                                                                        setUsers(merged);
+                                                                        usersRef.current = merged;
+                                                                        setCurrentUser(bk);
+                                                                        currentUserRef.current = bk;
+                                                                        if (bk.examHistory) setExamHistory(bk.examHistory);
+                                                                        localStorage.setItem(STORAGE.USERS, JSON.stringify(merged));
+                                                                        showToast('✅ Đã khôi phục từ backup!');
+                                                                        setCloudStatusSafe('synced');
+                                                                    } else {
+                                                                        showToast('⚠️ Khôi phục thất bại, thử lại');
+                                                                    }
+                                                                }}
+                                                                className="w-full py-2 bg-orange-500/20 hover:bg-orange-500 text-orange-400 hover:text-white font-bold rounded-lg text-[10px] transition flex items-center justify-center gap-2"
+                                                            >
+                                                                <i data-lucide="rotate-ccw" className="w-3.5 h-3.5"></i>KHÔI PHỤC TỪ BACKUP
+                                                            </button>
                                                         </div>
                                                     );
                                                 })()}
@@ -1116,11 +1188,14 @@
                                         </div>
                                     )}
 
+                                    {/* HISTORY */}
                                     {profileTab==='history' && (
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <h3 className="text-sm font-bold text-orange-400 flex items-center gap-2"><i data-lucide="trophy" className="w-4 h-4"></i>LỊCH SỬ ĐIỂM SỐ</h3>
-                                                <button onClick={()=>setShowAddScore(!showAddScore)} className="p-2 bg-orange-500/20 hover:bg-orange-500 text-orange-400 hover:text-white rounded-lg transition"><i data-lucide={showAddScore?"x":"plus"} className="w-4 h-4"></i></button>
+                                                <button onClick={()=>setShowAddScore(!showAddScore)} className="p-2 bg-orange-500/20 hover:bg-orange-500 text-orange-400 hover:text-white rounded-lg transition">
+                                                    <i data-lucide={showAddScore?"x":"plus"} className="w-4 h-4"></i>
+                                                </button>
                                             </div>
                                             {showAddScore && (
                                                 <div className="bg-white/5 rounded-2xl p-4 space-y-3 border border-orange-500/30">
@@ -1129,7 +1204,9 @@
                                                         <input type="number" step="0.25" placeholder="Điểm đạt" value={newScore} onChange={e=>setNewScore(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-2 px-4 text-sm outline-none focus:border-orange-500 transition" />
                                                         <input type="number" step="0.25" placeholder="Tổng điểm" value={newMaxScore} onChange={e=>setNewMaxScore(e.target.value)} className="w-full bg-black border border-white/10 rounded-xl py-2 px-4 text-sm outline-none focus:border-orange-500 transition" />
                                                     </div>
-                                                    <button onClick={handleAddScore} className="w-full py-2 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl transition flex items-center justify-center gap-2"><i data-lucide="check" className="w-4 h-4"></i>Thêm điểm</button>
+                                                    <button onClick={handleAddScore} className="w-full py-2 bg-orange-500 hover:bg-orange-400 text-white font-bold rounded-xl transition flex items-center justify-center gap-2">
+                                                        <i data-lucide="check" className="w-4 h-4"></i>Thêm điểm
+                                                    </button>
                                                 </div>
                                             )}
                                             {examHistory.length > 0 && (
@@ -1148,17 +1225,16 @@
                                                         <div key={item.id} className={`border rounded-xl p-3 ${cc}`}>
                                                             <div className="flex items-start justify-between gap-3">
                                                                 <div className="flex-1 min-w-0">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <p className="text-sm font-bold text-white truncate">{item.examName}</p>
-                                                                        {item.autoSaved && <span className="flex-shrink-0 px-1.5 py-0.5 bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[8px] font-black rounded-full uppercase">AUTO</span>}
-                                                                    </div>
+                                                                    <p className="text-sm font-bold text-white truncate">{item.examName}</p>
                                                                     <div className="flex items-center gap-3 mt-1">
                                                                         <span className={`text-lg font-black ${tc}`}>{item.score}/{item.maxScore}</span>
                                                                         <span className={`text-xs font-bold ${tc}`}>({item.percentage}%)</span>
                                                                     </div>
                                                                     <p className="text-[10px] text-gray-500 mt-1">{item.date}</p>
                                                                 </div>
-                                                                <button onClick={()=>handleDeleteHistory(item.id)} className="p-2 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-lg transition flex-shrink-0"><i data-lucide="trash-2" className="w-4 h-4"></i></button>
+                                                                <button onClick={()=>handleDeleteHistory(item.id)} className="p-2 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white rounded-lg transition flex-shrink-0">
+                                                                    <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                                </button>
                                                             </div>
                                                         </div>
                                                     );
@@ -1166,12 +1242,14 @@
                                                     <div className="text-center py-12">
                                                         <i data-lucide="file-text" className="w-16 h-16 mx-auto text-gray-700 mb-4"></i>
                                                         <p className="text-sm text-gray-500">Chưa có lịch sử điểm</p>
-                                                        <p className="text-xs text-gray-600 mt-1">Điểm sẽ tự động được lưu sau khi làm bài</p>
+                                                        <p className="text-xs text-gray-600 mt-1">Nhấn + để thêm điểm mới</p>
                                                     </div>
                                                 )}
                                             </div>
                                             {examHistory.length > 0 && (
-                                                <button onClick={handleClearHistory} className="w-full py-2 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white font-bold rounded-xl transition flex items-center justify-center gap-2"><i data-lucide="trash" className="w-4 h-4"></i>Xóa toàn bộ lịch sử</button>
+                                                <button onClick={handleClearHistory} className="w-full py-2 bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white font-bold rounded-xl transition flex items-center justify-center gap-2">
+                                                    <i data-lucide="trash" className="w-4 h-4"></i>Xóa toàn bộ lịch sử
+                                                </button>
                                             )}
                                         </div>
                                     )}
@@ -1185,11 +1263,16 @@
                         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
                             <div className="w-full max-w-sm bg-[#0d0d0d] border border-cyan-500/30 rounded-[32px] p-8 relative">
                                 <button onClick={()=>setShowForgot(false)} className="absolute top-6 right-6 text-gray-500 hover:text-white transition"><i data-lucide="x" className="w-5 h-5"></i></button>
-                                <h2 className="text-xl font-black text-cyan-400 mb-8 flex items-center gap-3"><i data-lucide="key" className="w-6 h-6" />BẢO MẬT</h2>
+                                <h2 className="text-xl font-black text-cyan-400 mb-8 flex items-center gap-3">
+                                    <i data-lucide="key" className="w-6 h-6" />BẢO MẬT
+                                    <i data-lucide="cloud" className="w-4 h-4 text-cyan-500/50"></i>
+                                </h2>
                                 {forgotStep===1 && (
                                     <div className="space-y-5">
                                         <input type="text" placeholder="TÊN ĐĂNG NHẬP" className="w-full bg-black border border-white/10 rounded-2xl py-4 px-4 outline-none focus:border-cyan-500 uppercase" value={forgotUser||currentUser?.user||""} onChange={e=>setForgotUser(e.target.value)} disabled={!!currentUser} />
-                                        <button onClick={sendForgotOtp} disabled={isLoading} className="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-black rounded-2xl disabled:opacity-50">{isLoading?'ĐANG GỬI...':'GỬI MÃ OTP'}</button>
+                                        <button onClick={sendForgotOtp} disabled={isLoading} className="w-full py-4 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-black rounded-2xl disabled:opacity-50">
+                                            {isLoading?'ĐANG GỬI...':'GỬI MÃ OTP'}
+                                        </button>
                                     </div>
                                 )}
                                 {forgotStep===2 && (
@@ -1202,7 +1285,9 @@
                                 {forgotStep===3 && (
                                     <div className="space-y-5">
                                         <input type="password" placeholder="MẬT KHẨU MỚI (tối thiểu 6 ký tự)" className="w-full bg-black border border-white/10 rounded-2xl py-4 px-4 outline-none focus:border-cyan-500" value={forgotNewPw} onChange={e=>setForgotNewPw(e.target.value)} />
-                                        <button onClick={updateForgotPassword} className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-black rounded-2xl flex items-center justify-center gap-2"><i data-lucide="cloud-upload" className="w-4 h-4" />CẬP NHẬT & SYNC CLOUD</button>
+                                        <button onClick={updateForgotPassword} className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 text-black font-black rounded-2xl flex items-center justify-center gap-2">
+                                            <i data-lucide="cloud-upload" className="w-4 h-4" />CẬP NHẬT & SYNC CLOUD
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -1216,4 +1301,3 @@
     </script>
 </body>
 </html>
-
